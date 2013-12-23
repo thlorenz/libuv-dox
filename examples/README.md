@@ -37,3 +37,8 @@ cd helloworld
 make
 ./main
 ```
+
+## Oddities
+
+All examples have the `uv.h` file linked. While that is not necessary to make these, it pleases my `clang-complete` vim
+plugin to no end ;)
