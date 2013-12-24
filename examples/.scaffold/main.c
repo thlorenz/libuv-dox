@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <uv.h>
+#include "../libuv/include/uv.h"
 
 int main() {
   return 0;
