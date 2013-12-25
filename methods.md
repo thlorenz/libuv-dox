@@ -118,9 +118,12 @@
 	- [`uv_fs_req_cleanup`](#uv_fs_req_cleanup)
 	- [`uv_fs_close`](#uv_fs_close)
 	- [`uv_fs_open`](#uv_fs_open)
+		- [`uv_fs_t *req` passed to callback](#uv_fs_t-req-passed-to-callback)
 	- [`uv_fs_read`](#uv_fs_read)
+		- [`uv_fs_t *req` passed to callback](#uv_fs_t-req-passed-to-callback-1)
 	- [`uv_fs_unlink`](#uv_fs_unlink)
 	- [`uv_fs_write`](#uv_fs_write)
+		- [`uv_fs_t *req` passed to callback](#uv_fs_t-req-passed-to-callback-2)
 	- [`uv_fs_mkdir`](#uv_fs_mkdir)
 	- [`uv_fs_rmdir`](#uv_fs_rmdir)
 	- [`uv_fs_readdir`](#uv_fs_readdir)
@@ -1432,6 +1435,8 @@ request.
 
 ## `uv_fs_req_cleanup`
 
+nulls out `req->path`, `req->new_path` and `req->ptr` (unless it points to `req->statbuf`).
+
 ```c
 void uv_fs_req_cleanup(uv_fs_t* req);
 ```
@@ -1453,6 +1458,10 @@ int uv_fs_open(uv_loop_t* loop,
                uv_fs_cb cb);
 ```
 
+### `uv_fs_t *req` passed to callback
+
+`req->result` is error code or `uv_file` which is passed to `uv_fs_read`.
+
 ## `uv_fs_read`
 
 ```c
@@ -1464,6 +1473,10 @@ int uv_fs_read(uv_loop_t* loop,
                int64_t offset,
                uv_fs_cb cb);
 ```
+
+### `uv_fs_t *req` passed to callback
+
+`req->result` is error code or `ssize_t` number of bytes read.
 
 ## `uv_fs_unlink`
 
@@ -1485,6 +1498,10 @@ int uv_fs_write(uv_loop_t* loop,
                 int64_t offset,
                 uv_fs_cb cb);
 ```
+
+### `uv_fs_t *req` passed to callback
+
+`req->result` is error code or `ssize_t` number of bytes written.
 
 ## `uv_fs_mkdir`
 

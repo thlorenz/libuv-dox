@@ -10,9 +10,9 @@
 	- [`uv_connect_t : uv_req_t`](#uv_connect_t--uv_req_t)
 	- [`uv_udp_send_t : uv_req_t`](#uv_udp_send_t--uv_req_t)
 	- [`uv_fs_t : uv_req_t`](#uv_fs_t--uv_req_t)
+		- [`req->result`](#req->result)
 	- [`uv_work_t : uv_req_t`](#uv_work_t--uv_req_t)
 	- [`uv_connect_t : uv_req_t`](#uv_connect_t--uv_req_t-1)
-		- [`uv_fs_t`](#uv_fs_t)
 - [buffers](#buffers)
 	- [`uv_buf_t `](#uv_buf_t-)
 - [handles](#handles)
@@ -224,7 +224,6 @@ struct uv_udp_send_s {
 
 ```c
 struct uv_fs_s {
-  UV_REQ_FIELDS
   uv_fs_type fs_type;
   uv_loop_t* loop;
   uv_fs_cb cb;
@@ -248,6 +247,13 @@ struct uv_fs_s {
   struct uv__work work_req;
 };
 ```
+
+### `req->result`
+
+Takes on different meanings depending on which of the `fs_*` methods it was used for.
+In all cases if it is `< 0` that means an error occurred and it contains the error code.
+
+For more info see `fs_*` methods dox.
 
 ## `uv_work_t : uv_req_t`
 
@@ -271,34 +277,6 @@ struct uv_connect_s {
 
   // UV_CONNECT_PRIVATE_FIELDS (include/uv-unix.h)
   void* queue[2];
-};
-```
-
-### `uv_fs_t`
-
-```c
-struct uv_fs_s {
-  uv_fs_type fs_type;
-  uv_loop_t* loop;
-  uv_fs_cb cb;
-  ssize_t result;
-  void* ptr;
-  const char* path;
-  uv_stat_t statbuf;  /* Stores the result of uv_fs_stat and uv_fs_fstat. */
-
-  // UV_FS_PRIVATE_FIELDS (include/uv-unix.h)
-  const char *new_path;
-  uv_file file;
-  int flags;
-  mode_t mode;
-  void* buf;
-  size_t len;
-  off_t off;
-  uv_uid_t uid;
-  uv_gid_t gid;
-  double atime;
-  double mtime;
-  struct uv__work work_req;
 };
 ```
 
