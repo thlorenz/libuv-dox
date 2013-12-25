@@ -35,7 +35,7 @@ void write_data(uv_stream_t *dest, size_t size, const uv_buf_t *buf, uv_write_cb
   write_req_t *req = malloc(sizeof(write_req_t));
   req->buf = uv_buf_init((char*) malloc(size), size);
   // pass copy of the buf thru to free_write_req because:
-  //  - buf de-allocates once we lose scope
+  //  - buf->base is deallocated inside read_cb after write_data was called
   //  - therefore we need to copy it's contents, but also need to free the copy later
   memcpy(req->buf.base, buf->base, size);
   uv_write((uv_write_t*)req, (uv_stream_t*)dest, &req->buf, 1 /* n bufs */, cb);
