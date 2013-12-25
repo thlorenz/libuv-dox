@@ -37,3 +37,28 @@ cd helloworld
 make
 ./main
 ```
+
+## libuv book
+
+The examples starting with a number i.e. `02-uvcat` have been adapted from the
+[uvbook](http://nikhilm.github.io/uvbook/).
+
+- adapted to match current libuv API
+- `assert` statements where inserted to document expected values, i.e. `req->fs_type`
+- some error handling was introduced
+- log statements on `stderr` where added
+
+## Isolating logs vs. output
+
+For examples that have lots of output do the following in order to show logs only:
+
+    ./main ... 1>/dev/null
+
+This is similar to running `make runerr`.
+
+To omit logs do:
+
+
+    ./main 2>/dev/null 
+
+This is similar to running `make runout`.
