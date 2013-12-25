@@ -23,6 +23,8 @@
 	- [`uv_close`](#uv_close)
 - [requests](#requests)
 	- [`uv_req_size`](#uv_req_size)
+- [buffers](#buffers)
+	- [`uv_buf_init`](#uv_buf_init)
 - [streams](#streams)
 	- [`uv_listen`](#uv_listen)
 	- [`uv_accept`](#uv_accept)
@@ -471,6 +473,20 @@ void uv_close(uv_handle_t* handle, uv_close_cb close_cb);
  * Returns size of request types, useful for dynamic lookup with FFI
  */
 size_t uv_req_size(uv_req_type type);
+```
+
+# buffers
+
+## `uv_buf_init`
+
+```c
+/*
+ * Constructor for uv_buf_t.
+ * Due to platform differences the user cannot rely on the ordering of the
+ * base and len members of the uv_buf_t struct. The user is responsible for
+ * freeing base after the uv_buf_t is done. Return struct passed by value.
+ */
+uv_buf_t uv_buf_init(char* base, unsigned int len);
 ```
 
 # streams

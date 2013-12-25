@@ -14,7 +14,7 @@
 	- [`uv_work_t : uv_req_t`](#uv_work_t--uv_req_t)
 	- [`uv_connect_t : uv_req_t`](#uv_connect_t--uv_req_t-1)
 - [buffers](#buffers)
-	- [`uv_buf_t `](#uv_buf_t-)
+	- [`uv_buf_t`](#uv_buf_t)
 - [handles](#handles)
 	- [`uv_handle_t`](#uv_handle_t)
 	- [streams](#streams)
@@ -282,17 +282,13 @@ struct uv_connect_s {
 
 # buffers
 
-
-## `uv_buf_t `
+## `uv_buf_t`
 
 ```c
-/*
- * Constructor for uv_buf_t.
- * Due to platform differences the user cannot rely on the ordering of the
- * base and len members of the uv_buf_t struct. The user is responsible for
- * freeing base after the uv_buf_t is done. Return struct passed by value.
- */
-UV_EXTERN uv_buf_t uv_buf_init(char* base, unsigned int len);
+typedef struct {
+  char* base;
+  size_t len;
+} uv_buf_t;
 ```
 
 # handles
