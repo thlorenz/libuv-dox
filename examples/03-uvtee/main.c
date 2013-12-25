@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "../libuv/include/uv.h"
 
 #define STDIN 0
@@ -16,26 +17,33 @@ uv_pipe_t stdin_pipe;
 uv_pipe_t stdout_pipe;
 uv_pipe_t file_pipe;
 
-void alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
-  char *chunk = (char*)malloc(suggested_size);
-  buf->base = chunk;
-  buf->len = sizeof(chunk);
+void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
+  fprintf(stderr, "allocating %ld bytes\n", size);
+  buf->base = malloc(size);
+  buf->len = size;
+
+  assert(buf->base != NULL);
 }
 
 void free_write_req(uv_write_t *req) {
-  write_req_t *wrec = (write_req_t*) req;
-  free(wrec->buf.base);
-  free(wrec);
+  write_req_t *wreq = (write_req_t*) req;
+  free(wreq->buf.base);
+  free(wreq);
 }
 
 void write_data(uv_stream_t *dest, size_t size, const uv_buf_t *buf, uv_write_cb cb) {
-  write_req_t * req = malloc(sizeof(write_req_t));
+  write_req_t *req = malloc(sizeof(write_req_t));
   req->buf = uv_buf_init((char*) malloc(size), size);
+  // pass copy of the buf thru to free_write_req because:
+  //  - buf de-allocates once we lose scope
+  //  - therefore we need to copy it's contents, but also need to free the copy later
   memcpy(req->buf.base, buf->base, size);
   uv_write((uv_write_t*)req, (uv_stream_t*)dest, &req->buf, 1 /* n bufs */, cb);
 }
 
 void write_cb(uv_write_t* req, int status) {
+  assert(status == 0);
+  assert(req->type == UV_WRITE);
   free_write_req(req);
 }
 
@@ -45,6 +53,7 @@ void read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
     uv_close((uv_handle_t*)&stdout_pipe, NULL);
     uv_close((uv_handle_t*)&file_pipe, NULL);
   } else if (nread > 0) {
+    fprintf(stderr, "%ld bytes read\n", nread);
     write_data((uv_stream_t*)&stdout_pipe, nread, buf, write_cb);
     write_data((uv_stream_t*)&file_pipe, nread, buf, write_cb);
   }
