@@ -129,7 +129,9 @@ void start_recv() {
   if (r) ERROR("recv start", r);
 }
 
+// more info: http://beej.us/guide/bgnet/output/html/multipage/advanced.html#broadcast
 void set_broadcast() {
+
   int r;
 
   struct sockaddr_in broadcast_addr;
