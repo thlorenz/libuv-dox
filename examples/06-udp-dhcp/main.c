@@ -133,6 +133,9 @@ void set_broadcast() {
   int r;
 
   struct sockaddr_in broadcast_addr;
+
+  // The IP address 0.0.0.0 is used to bind to all interfaces.
+  // Port 0 means that the OS randomly assigns a port.
   r = uv_ip4_addr("0.0.0.0", 0, &broadcast_addr);
   if (r) ERROR("ip4_addr", r);
 
@@ -146,6 +149,8 @@ void send_msg(const uv_buf_t *discover_msg ) {
   int r;
 
   struct sockaddr_in send_addr;
+
+  // The IP address 255.255.255.255 is a broadcast address meaning that packets will be sent to all interfaces on the subnet.
   r = uv_ip4_addr("255.255.255.255", 67, &send_addr);
   if (r) ERROR("ip4_addr", r);
 
