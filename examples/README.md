@@ -38,6 +38,8 @@ make
 ./main
 ```
 
+Or even shorter `make run` will recompile and run the example as well.
+
 ## libuv book
 
 The examples starting with a number i.e. `02-uvcat` have been adapted from the
