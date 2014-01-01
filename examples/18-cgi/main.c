@@ -26,14 +26,13 @@ void on_exit(uv_process_t* req, int64_t exit_status, int term_signal) {
   uv_close((uv_handle_t*) req, NULL);
 }
 
-char* exepath_for_tick() {
+void exepath_for_tick() {
   int r;
   size_t size = PATH_MAX;
 
   r = uv_exepath(exepath, &size);
   if (r) ERROR("getting executable path", r);
   strcpy(exepath + (strlen(exepath) - strlen("main")), "tick");
-  return exepath;
 }
 
 void invoke_cgi_script(uv_tcp_t *client) {
