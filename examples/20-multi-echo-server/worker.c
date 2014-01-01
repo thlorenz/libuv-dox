@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <assert.h>
-#include <sys/syslimits.h>
 #include "../libuv/include/uv.h"
 
 #define ERROR(msg, code) do {                                                         \
@@ -10,9 +10,15 @@
 } while(0);
 
 
+#define STDIN   0
+#define STDOUT  1
+#define STDERR  2
+
 #define NOIPC 0
+#define IPC   1
 
 uv_loop_t *loop;
+uv_pipe_t queue;
 
 void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
   buf->base = malloc(size);
@@ -36,13 +42,13 @@ void read_cb(uv_stream_t* client, ssize_t nread, const uv_buf_t* buf) {
   uv_write_t *req = (uv_write_t*) malloc(sizeof(uv_write_t));
   req->data = (void*) buf->base;
 
-  uv_write(req, client, buf, 1, write_cb);
+  uv_write(req, (uv_stream_t*)client, buf, 1, write_cb);
 }
 
-void connect_cb(uv_stream_t *server, int status) {
+void connect_cb(uv_pipe_t* queue_, ssize_t nread, const uv_buf_t* buf, uv_handle_type pending) {
   int r;
-  if (status) {
-    fprintf(stderr, "connection error: [%s: %s]\n", uv_err_name((status)), uv_strerror((status)));
+  if (pending == UV_UNKNOWN_HANDLE) {
+    fprintf(stderr, "attempt to connect with unknown handle");
     return;
   }
 
@@ -50,36 +56,24 @@ void connect_cb(uv_stream_t *server, int status) {
   r = uv_pipe_init(loop, client, NOIPC);;
   if (r) ERROR("initializing client pipe", r);
 
-  r = uv_accept(server, (uv_stream_t*) client);
+  // get fd (client) from another fd (queue_ - listening socket == server)
+  r = uv_accept((uv_stream_t*) queue_, (uv_stream_t*) client);
   if (r == 0) {
+    fprintf(stderr, "Worker %d: Accepted fd %d\n", getpid(), client->io_watcher.fd);
     uv_read_start((uv_stream_t*) client, alloc_cb, read_cb);
   } else {
     uv_close((uv_handle_t*) client, NULL);
   }
 }
 
-void sigint_cb(int sig) {
-  int r;
-  uv_fs_t req;
-  r = uv_fs_unlink(loop, &req, "echo.sock", NULL);
-  if (r) ERROR("unlinking echo.sock", r);
-  exit(0);
-}
-
-int main() {
-  int r;
+int main(void) {
   loop = uv_default_loop();
 
-  signal(SIGINT, sigint_cb);
+  uv_pipe_init(loop, &queue, IPC);
+  uv_pipe_open(&queue, STDIN);
 
-  uv_pipe_t server;
-  uv_pipe_init(loop, &server, NOIPC);
-
-  r = uv_pipe_bind(&server, "echo.sock");
-  if (r) ERROR("binding to echo.sock", r);
-
-  r = uv_listen((uv_stream_t*) &server, 128, connect_cb);
-  if (r) ERROR("listening on socket", r);
-
+  // same as read, but allows passing handles over pipes
+  // https://github.com/thlorenz/libuv-dox/blob/master/methods.md#uv_read2_start
+  uv_read2_start((uv_stream_t*)&queue, alloc_cb, connect_cb);
   return uv_run(loop, UV_RUN_DEFAULT);
 }
