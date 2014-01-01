@@ -11,6 +11,9 @@ The information found in `uv.h` has been organized into three categories:
 - [callbacks](https://github.com/thlorenz/libuv-dox/blob/master/callbacks.md)
 - [methods](https://github.com/thlorenz/libuv-dox/blob/master/methods.md)
 
+[Examples](https://github.com/thlorenz/libuv-dox/tree/master/examples) were added to show how the API is used.
+
+
 ### types
 
 The inheritance relationship is documented via `:`, i.e. [`uv_tcp_t :
