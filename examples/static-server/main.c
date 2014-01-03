@@ -46,12 +46,13 @@ static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
 }
 
 static void on_client_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
+
   if (nread == UV_EOF) {
     uv_close((uv_handle_t*) client, NULL);
 
     debug("closed client connection");
   } else if (nread > 0) {
-    debug("%ld bytes read from client %d", nread, *(int*)client->data);
+    log_info("client: %d (len %ld)\n%s", *(int*)client->data, nread, buf->base);
     uv_close((uv_handle_t*) client, NULL);
   }
   if (buf->base) free(buf->base);
