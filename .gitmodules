@@ -1,3 +1,6 @@
 [submodule "examples/libuv"]
 	path = examples/libuv
 	url = https://github.com/joyent/libuv.git
+[submodule "examples/http-parser"]
+	path = examples/http-parser
+	url = https://github.com/joyent/http-parser.git
