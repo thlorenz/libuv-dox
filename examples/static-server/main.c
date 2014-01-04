@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "dgb.h"
 #include "../libuv/include/uv.h"
 #include "../http-parser/http_parser.h"
@@ -40,6 +41,11 @@ static void on_client_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *b
 static int on_headers_complete(http_parser* parser);
 static void on_res_end(uv_handle_t *handle);
 
+static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
+  buf->base = malloc(size);
+  buf->len = size;
+}
+
 static void on_connect(uv_stream_t *server, int status) {
   int r;
 
@@ -49,9 +55,16 @@ static void on_connect(uv_stream_t *server, int status) {
   client_t *client = malloc(sizeof(client_t));
   client->request_id = request_id++;
 
+  // we could use client pointer as shorthand interchangeably with &client->handle
+  // for clarity, we assigned exactly what
+  assert(client == (void*)&client->handle);
+
   uv_tcp_init(loop, &client->handle);
   http_parser_init(&client->parser, HTTP_REQUEST);
 
+  // parser parses all data piped into the tcp socket (client->handle) -- that's all it needs from client struct
+  // however we'll cast this back to the full client struct to get a hold of the client_req
+  // which is kept around as long as the client itself is
   // see: on_headers_complete
   client->parser.data = client;
 
@@ -63,13 +76,11 @@ static void on_connect(uv_stream_t *server, int status) {
     log_err("error accepting connection %d", r);
     uv_close((uv_handle_t*) client, NULL);
   } else {
+    // read the request into the tcp socket to cause it to get parsed
+    // once the headers are in we'll get called back the first time (see on_headers_complete)
+    // for now we assume no body since this is just a static webserver
     uv_read_start((uv_stream_t*) client, alloc_cb, on_client_read);
   }
-}
-
-static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
-  buf->base = malloc(size);
-  buf->len = size;
 }
 
 static void on_client_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
@@ -106,6 +117,7 @@ static void on_res_end(uv_handle_t *handle) {
 }
 
 static int on_headers_complete(http_parser* parser) {
+  // parser->data was pointed to the client struct in on_connect
   client_t *client = (client_t*) parser->data;
   log_info("[ %3d ] http message parsed", client->request_id);
   uv_write(&client->write_req, (uv_stream_t*) &client->handle, &default_response, 1, on_res_write);
@@ -117,6 +129,7 @@ int main() {
   default_response.base = DEFAULT_RESPONSE;
   default_response.len = strlen(default_response.base);
 
+  // parser settings shared for each request
   parser_settings.on_headers_complete  = on_headers_complete;
 
   request_id = 0;
