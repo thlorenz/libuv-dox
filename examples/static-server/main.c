@@ -38,7 +38,14 @@ static uv_buf_t default_response;
 static void on_connect(uv_stream_t *server, int status);
 static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf);
 static void on_client_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf);
+
+static int on_message_begin(http_parser* parser);
+static int on_url(http_parser* parser, const char* hdr, size_t length);
+static int on_status(http_parser* parser, const char* hdr, size_t length);
+static int on_header_field(http_parser* parser, const char* hdr, size_t length);
+static int on_header_value(http_parser* parser, const char* hdr, size_t length);
 static int on_headers_complete(http_parser* parser);
+
 static void on_res_end(uv_handle_t *handle);
 
 static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
@@ -116,13 +123,71 @@ static void on_res_end(uv_handle_t *handle) {
   log_info("[ %3d ] connection closed", client->request_id);
 }
 
+static char* strslice(const char* s, size_t len) {
+  char *slice = (char*) malloc(sizeof(char) * (len + 1));
+  strncpy(slice, s, len);
+  slice[len] = '\0';
+  return slice;
+}
+
+static int on_message_begin(http_parser* parser) {
+  client_t *client = (client_t*) parser->data;
+  dbg("[ %3d ] message begin", client->request_id);
+  return 0;
+}
+
+static int on_url(http_parser* parser, const char* hdr, size_t length) {
+  client_t *client = (client_t*) parser->data;
+  char *url = strslice(hdr, length);
+  dbg("[ %3d ] h_url: %s", client->request_id, url);
+  free(url);
+  return 0;
+}
+
+static int on_status(http_parser* parser, const char* hdr, size_t length) {
+  client_t *client = (client_t*) parser->data;
+  char *status = strslice(hdr, length);
+  dbg("[ %3d ] h_status: %s", client->request_id, status);
+  free(status);
+  return 0;
+}
+
+static int on_header_field(http_parser* parser, const char* hdr, size_t length) {
+  client_t *client = (client_t*) parser->data;
+  char *field = strslice(hdr, length);
+  dbg("[ %3d ] h_field: %s", client->request_id, field);
+  free(field);
+  return 0;
+}
+
+static int on_header_value(http_parser* parser, const char* hdr, size_t length) {
+  client_t *client = (client_t*) parser->data;
+  char *value = strslice(hdr, length);
+  dbg("[ %3d ] h_value: %s", client->request_id, value);
+  free(value);
+  return 0;
+}
+
 static int on_headers_complete(http_parser* parser) {
   // parser->data was pointed to the client struct in on_connect
   client_t *client = (client_t*) parser->data;
-  log_info("[ %3d ] http message parsed", client->request_id);
-  uv_write(&client->write_req, (uv_stream_t*) &client->handle, &default_response, 1, on_res_write);
+  dbg("[ %3d ] headers complete", client->request_id);
+
+  // signal that there won't be a body by returning 1
+  // we don't support anything but HEAD and GET since we are just a static webserver
   return 1;
 }
+
+static int on_message_complete(http_parser* parser) {
+  client_t *client = (client_t*) parser->data;
+  dbg("[ %3d ] message complete", client->request_id);
+
+  // respond
+  uv_write(&client->write_req, (uv_stream_t*) &client->handle, &default_response, 1, on_res_write);
+
+  return 0;
+}
+
 
 int main() {
   int r;
@@ -130,7 +195,13 @@ int main() {
   default_response.len = strlen(default_response.base);
 
   // parser settings shared for each request
-  parser_settings.on_headers_complete  = on_headers_complete;
+  parser_settings.on_message_begin    =  on_message_begin;
+  parser_settings.on_status           =  on_status;
+  parser_settings.on_url              =  on_url;
+  parser_settings.on_header_field     =  on_header_field;
+  parser_settings.on_header_value     =  on_header_value;
+  parser_settings.on_headers_complete =  on_headers_complete;
+  parser_settings.on_message_complete =  on_message_complete;
 
   request_id = 0;
   loop = uv_default_loop();
