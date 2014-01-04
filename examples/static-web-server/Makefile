@@ -11,6 +11,10 @@ MAIN=main.c
 MAIN_OBJECTS=$(MAIN:.c=.o)
 EXECUTABLE=main
 
+REQUEST_PARSER_SRC=sws-request-parser.c
+REQUEST_PARSER=sws-request-parser.o
+CFLAGS+=$(REQUEST_PARSER_SRC)
+
 uname_S=$(shell uname -s)
 
 ifeq (Darwin, $(uname_S))
@@ -22,7 +26,7 @@ LIBS=-lrt -ldl -lm -pthread
 PLUGIN_EXE_FLAGS=-Wl,-export-dynamic
 endif
 
-all: $(UV_LIB) $(HTTP_PARSER) $(EXECUTABLE)
+all: clean $(UV_LIB) $(HTTP_PARSER) $(EXECUTABLE)
 
 run: all
 	@echo "\n\033[1;33m>>>\033[0m"
@@ -42,7 +46,7 @@ $(HTTP_PARSER):
 clean:
 	find . -name "*.gc*" -exec rm {} \;
 	rm -rf `find . -name "*.dSYM" -print`
-	rm -f $(EXECUTABLE) $(MAIN_OBJECTS) 
+	rm -f $(EXECUTABLE) $(MAIN_OBJECTS) $(REQUEST_PARSER_OBJECT)
 
 
 .PHONY: all clean
