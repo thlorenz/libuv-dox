@@ -15,6 +15,10 @@ REQUEST_PARSER_SRC=sws-request-parser.c
 REQUEST_PARSER=sws-request-parser.o
 CFLAGS+=$(REQUEST_PARSER_SRC)
 
+RESOLVE_RESOURCE_SRC=sws-resolve-resource.c
+RESOLVE_RESOURCE=sws-resolve-resource.o
+CFLAGS+=$(RESOLVE_RESOURCE_SRC)
+
 uname_S=$(shell uname -s)
 
 ifeq (Darwin, $(uname_S))
@@ -46,7 +50,7 @@ $(HTTP_PARSER):
 clean:
 	find . -name "*.gc*" -exec rm {} \;
 	rm -rf `find . -name "*.dSYM" -print`
-	rm -f $(EXECUTABLE) $(MAIN_OBJECTS) $(REQUEST_PARSER_OBJECT)
+	rm -f $(EXECUTABLE) $(MAIN_OBJECTS) $(REQUEST_PARSER_OBJECT) $(RESOLVE_RESOURCE)
 
 
 .PHONY: all clean
