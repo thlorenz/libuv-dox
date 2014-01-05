@@ -11,12 +11,12 @@ MAIN=main.c
 MAIN_OBJECTS=$(MAIN:.c=.o)
 EXECUTABLE=main
 
-REQUEST_PARSER_SRC=sws-request-parser.c
-REQUEST_PARSER=sws-request-parser.o
+REQUEST_PARSER_SRC=request-parser.c
+REQUEST_PARSER=request-parser.o
 CFLAGS+=$(REQUEST_PARSER_SRC)
 
-RESOLVE_RESOURCE_SRC=sws-resolve-resource.c
-RESOLVE_RESOURCE=sws-resolve-resource.o
+RESOLVE_RESOURCE_SRC=resolve-resource.c
+RESOLVE_RESOURCE=resolve-resource.o
 CFLAGS+=$(RESOLVE_RESOURCE_SRC)
 
 uname_S=$(shell uname -s)

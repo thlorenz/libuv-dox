@@ -4,7 +4,7 @@
 #include <assert.h>
 #include "dgb.h"
 
-#include "sws-request-parser.h"
+#include "request-parser.h"
 #include "../libuv/include/uv.h"
 #include "../http-parser/http_parser.h"
 

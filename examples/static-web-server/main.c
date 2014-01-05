@@ -3,8 +3,8 @@
 #include <assert.h>
 #include "dgb.h"
 #include "../libuv/include/uv.h"
-#include "sws-request-parser.h"
-#include "sws-resolve-resource.h"
+#include "request-parser.h"
+#include "resolve-resource.h"
 
 #define CHECK(r, msg) if (r) {                                                 \
   log_err("%s: [%s(%d): %s]\n", msg, uv_err_name((r)), r, uv_strerror((r)));   \
