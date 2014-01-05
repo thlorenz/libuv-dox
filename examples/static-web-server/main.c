@@ -31,7 +31,7 @@ static void on_connect(uv_stream_t *server, int status);
 static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf);
 static void on_req_read(uv_stream_t *req, ssize_t nread, const uv_buf_t *buf);
 
-static void on_parse_complete(sws_parse_result_t* parse_result);
+static void on_parse_complete(sws_parse_req_t* parse_result);
 static void on_res_write(uv_write_t* req, int status);
 static void on_res_end(uv_handle_t *handle);
 
@@ -90,9 +90,8 @@ static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
   if (buf->base) free(buf->base);
 }
 
-static void on_parse_complete(sws_parse_result_t* parse_result) {
-  sws_req_t *req = (sws_req_t*) parse_result;
-  debug("parsed header:\n%s", sws_req_parser_result_str(parse_result));
+static void on_parse_complete(sws_parse_req_t* req) {
+  debug("parsed header:\n%s", sws_req_parser_result_str((sws_parse_result_t*)req));
 
   uv_write(&req->write_req, (uv_stream_t*) &req->handle, &default_response, 1, on_res_write);
 }

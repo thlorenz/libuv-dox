@@ -154,7 +154,7 @@ static int on_message_complete(http_parser* parser) {
 
   req->method = req->parser.method;
   if (req->on_parse_complete) {
-    req->on_parse_complete((sws_parse_result_t*)req);
+    req->on_parse_complete(req);
   }
 
   return 0;
