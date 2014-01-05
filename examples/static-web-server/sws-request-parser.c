@@ -1,11 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <assert.h>
 #include "dgb.h"
 
 #include "sws-request-parser.h"
 #include "../libuv/include/uv.h"
 #include "../http-parser/http_parser.h"
+
+#define CHECK(r, msg) if (r) {                                                                \
+  log_err("%s: [%s(%d): %s]\n", msg, http_errno_name((r)), r, http_errno_description((r)));   \
+  exit(1);                                                                                    \
+}
 
 static char* strslice(const char* s, size_t len);
 
@@ -41,6 +47,16 @@ int sws_req_parser_execute(sws_parse_req_t * parse_req, char* buf, ssize_t nread
   return http_parser_execute(&parse_req->parser, &parser_settings, buf, nread);
 }
 
+char* sws_req_parser_result_str(sws_parse_result_t* r) {
+  char *str = malloc(sizeof(char) * MAX_HEADER_VALUE * 6 /*nfields*/) + 100 /*formatting*/;
+  sprintf(
+      str
+    , "url: '%s''\nUser-Agent: %s\nHost: '%s'\nAccept: '%s'\nAccept-Encoding: '%s'\nAccept-Language: '%s'"
+    , r->url,   r->user_agent,  r->host,    r->accept,    r->accept_encoding,    r->accept_language
+  );
+  return str;
+}
+
 static char* strslice(const char* s, size_t len) {
   char *slice = (char*) malloc(sizeof(char) * (len + 1));
   strncpy(slice, s, len);
@@ -55,9 +71,13 @@ static int on_message_begin(http_parser* parser) {
 }
 
 static int on_url(http_parser* parser, const char* hdr, size_t length) {
+  int r;
+
   sws_parse_req_t *req = (sws_parse_req_t*) parser->data;
   req->url = strslice(hdr, length);
+
   dbg("[ %3d ] url: %s\n", req->id, req->url);
+
   return 0;
 }
 
@@ -71,6 +91,35 @@ static int on_header_field(http_parser* parser, const char* hdr, size_t length) 
   return 0;
 }
 
+static char* strtolower(char* s) {
+  char *lower, *p;
+  lower = p = strdup(s);
+  while(*p) {
+    *p = tolower(*p);
+    p++;
+  }
+  return lower;
+}
+
+static void process_header_line(sws_parse_result_t* req) {
+  struct sws_header_line_s line = req->header_line;
+  char* key = strtolower(line.field);
+
+  if (strcmp(key, "user-agent") == 0) {
+    strcpy(req->user_agent, line.value);
+  } else if (strcmp(key, "host") == 0) {
+    strcpy(req->host, line.value);
+  } else if (strcmp(key, "accept") == 0) {
+    strcpy(req->accept, line.value);
+  } else if (strcmp(key, "accept-encoding") == 0) {
+    strcpy(req->accept_encoding, line.value);
+  } else if (strcmp(key, "accept-language") == 0) {
+    strcpy(req->accept_language, line.value);
+  }
+
+  free(key);
+}
+
 static int on_header_value(http_parser* parser, const char* hdr, size_t length) {
   sws_parse_req_t *req = (sws_parse_req_t*) parser->data;
 
@@ -80,8 +129,10 @@ static int on_header_value(http_parser* parser, const char* hdr, size_t length) 
   req->header_line.value = strslice(hdr, length);
   req->header_line.value_len = length;
 
-  // TODO: process headerline
+  process_header_line((sws_parse_result_t*) req);
+
   dbg("%s\n", req->header_line.value);
+
 
   free(req->header_line.field);
   req->header_line.field = NULL;

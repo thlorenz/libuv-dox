@@ -4,7 +4,7 @@
 #include "../libuv/include/uv.h"
 #include "../http-parser/http_parser.h"
 
-#define MAX_HEADER_LINES 1000
+#define MAX_HEADER_VALUE 500
 
 /* In order to decouple this parser from libuv, we could remove the handle and write req.
  * In that case the user would have to attach these, i.e. to a void* data.
@@ -14,17 +14,22 @@
   uv_write_t write_req;       \
   int id;
 
-struct header_line_s {
+struct sws_header_line_s {
   char *field;
   size_t field_len;
   char *value;
   size_t value_len;
 };
 
-#define SWS_PARSE_RESULT_FIELDS                         \
-  char *url;                                            \
-  /* private */                                         \
-  struct header_line_s header_line;                     \
+#define SWS_PARSE_RESULT_FIELDS           \
+  char *url;                              \
+  char user_agent[MAX_HEADER_VALUE];      \
+  char host[MAX_HEADER_VALUE];            \
+  char accept[MAX_HEADER_VALUE];          \
+  char accept_encoding[MAX_HEADER_VALUE]; \
+  char accept_language[MAX_HEADER_VALUE]; \
+  /* private */                           \
+  struct sws_header_line_s header_line;   \
 
 struct sws_req_s {
   SWS_REQ_FIELDS
@@ -51,6 +56,7 @@ struct sws_parse_req_s {
 typedef struct sws_parse_req_s sws_parse_req_t;
 
 void sws_req_parser_init(sws_parse_req_t* parse_req, sws_parse_complete_cb);
-int sws_req_parser_execute(sws_parse_req_t * parse_req, char* buf, ssize_t nread);
+int sws_req_parser_execute(sws_parse_req_t* parse_req, char* buf, ssize_t nread);
+char* sws_req_parser_result_str(sws_parse_result_t* result);
 
 #endif
