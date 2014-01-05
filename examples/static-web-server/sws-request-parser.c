@@ -11,7 +11,6 @@ static char* strslice(const char* s, size_t len);
 
 static int on_message_begin    ( http_parser* parser                                 );
 static int on_url              ( http_parser* parser, const char* hdr, size_t length );
-static int on_status           ( http_parser* parser, const char* hdr, size_t length );
 static int on_header_field     ( http_parser* parser, const char* hdr, size_t length );
 static int on_header_value     ( http_parser* parser, const char* hdr, size_t length );
 static int on_headers_complete ( http_parser* parser                                 );
@@ -20,7 +19,6 @@ static int on_message_complete ( http_parser* parser                            
 // parser settings shared for each req
 static http_parser_settings parser_settings = {
     .on_message_begin    =  on_message_begin
-  , .on_status           =  on_status
   , .on_url              =  on_url
   , .on_header_field     =  on_header_field
   , .on_header_value     =  on_header_value
@@ -57,33 +55,39 @@ static int on_message_begin(http_parser* parser) {
 }
 
 static int on_url(http_parser* parser, const char* hdr, size_t length) {
-  sws_req_t *req = (sws_req_t*) parser->data;
-  char *url = strslice(hdr, length);
-  dbg("[ %3d ] url: %s\n", req->id, url);
-  free(url);
-  return 0;
-}
-
-static int on_status(http_parser* parser, const char* hdr, size_t length) {
-  sws_req_t *req = (sws_req_t*) parser->data;
-  char *status = strslice(hdr, length);
-  dbg("[ %3d ] status: %s\n", req->id, status);
-  free(status);
+  sws_parse_req_t *req = (sws_parse_req_t*) parser->data;
+  req->url = strslice(hdr, length);
+  dbg("[ %3d ] url: %s\n", req->id, req->url);
   return 0;
 }
 
 static int on_header_field(http_parser* parser, const char* hdr, size_t length) {
-  sws_req_t *req = (sws_req_t*) parser->data;
-  char *field = strslice(hdr, length);
-  dbg("[ %3d ] %s: ", req->id, field);
-  free(field);
+  sws_parse_req_t *req = (sws_parse_req_t*) parser->data;
+
+  req->header_line.field = strslice(hdr, length);
+  req->header_line.field_len = length;
+
+  dbg("[ %3d ] %s: ", req->id, req->header_line.field);
   return 0;
 }
 
 static int on_header_value(http_parser* parser, const char* hdr, size_t length) {
-  char *value = strslice(hdr, length);
-  dbg("%s\n", value);
-  free(value);
+  sws_parse_req_t *req = (sws_parse_req_t*) parser->data;
+
+  assert(req->header_line.field_len > 0);
+  assert(req->header_line.field);
+
+  req->header_line.value = strslice(hdr, length);
+  req->header_line.value_len = length;
+
+  // TODO: process headerline
+  dbg("%s\n", req->header_line.value);
+
+  free(req->header_line.field);
+  req->header_line.field = NULL;
+
+  req->header_line.field_len = 0;
+
   return 0;
 }
 

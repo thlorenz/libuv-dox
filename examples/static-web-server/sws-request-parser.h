@@ -4,6 +4,8 @@
 #include "../libuv/include/uv.h"
 #include "../http-parser/http_parser.h"
 
+#define MAX_HEADER_LINES 1000
+
 /* In order to decouple this parser from libuv, we could remove the handle and write req.
  * In that case the user would have to attach these, i.e. to a void* data.
  */
@@ -12,8 +14,17 @@
   uv_write_t write_req;       \
   int id;
 
-#define SWS_PARSE_RESULT_FIELDS        \
-  /* none yet */
+struct header_line_s {
+  char *field;
+  size_t field_len;
+  char *value;
+  size_t value_len;
+};
+
+#define SWS_PARSE_RESULT_FIELDS                         \
+  char *url;                                            \
+  /* private */                                         \
+  struct header_line_s header_line;                     \
 
 struct sws_req_s {
   SWS_REQ_FIELDS

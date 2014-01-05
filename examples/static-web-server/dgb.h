@@ -13,7 +13,7 @@
 #define dbg(M, ...)
 #else
 // debug("format", arg ..) => fprintf(stderr, "DEBUG %s:%d: format\n", file, line, arg ...)
-#define debug(M, ...) fprintf(stderr, "\33[34mDEBUG\33[39m " M "\n   \33[90m at %s (%s:%d) \33[39m\n", ##__VA_ARGS__, __func__, __FILE__, __LINE__)
+#define debug(M, ...) fprintf(stderr, "\33[34mDEBUG\33[39m " M "   \33[90m at %s (%s:%d) \33[39m\n", ##__VA_ARGS__, __func__, __FILE__, __LINE__)
 #define dbg(M, ...) fprintf(stderr, M, ##__VA_ARGS__)
 #endif
 
