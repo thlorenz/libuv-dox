@@ -52,7 +52,7 @@ char* sws_req_parser_result_str(sws_parse_result_t* r) {
   const char *method = http_method_str(r->method);
   sprintf(
       str
-    , "\033[1;33m%s %s\33[0m\n\33[90m    User-Agent: %s\n    Host: '%s'\n    Accept: '%s'\n    Accept-Encoding: '%s'\n    Accept-Language: '%s'\33[39m"
+    , "\033[1;33m%s %s\33[0m\n\33[90m  User-Agent: %s\n  Host: '%s'\n  Accept: '%s'\n  Accept-Encoding: '%s'\n  Accept-Language: '%s'\33[39m"
     , method, r->url, r->user_agent, r->host, r->accept, r->accept_encoding, r->accept_language
   );
   return str;

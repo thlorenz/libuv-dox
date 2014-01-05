@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "dgb.h"
+#include <sys/syslimits.h>
 #include "sws-request-parser.h"
 #include "../libuv/include/uv.h"
 
@@ -90,10 +91,44 @@ static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
   if (buf->base) free(buf->base);
 }
 
-static void on_parse_complete(sws_parse_req_t* req) {
-  debug("parsed header:\n%s", sws_req_parser_result_str((sws_parse_result_t*)req));
+#define INDEX_HTML "/index.html"
 
+static char* resolve_url(const char* root, const char* url_path) {
+  char *full_path;
+  char *no_query, *cp;
+
+  // very naive way to trim the query string
+  no_query = cp = (char*) malloc(strlen(url_path));
+  strcpy(no_query, url_path);
+  while(*cp) {
+    if (*cp == '?') {
+      *cp = '\0';
+      break;
+    }
+    cp++;
+  }
+
+  if (strcmp(no_query, "/") == 0) {
+    full_path = (char*) malloc(strlen(root) + strlen(INDEX_HTML));
+    sprintf(full_path, "%s%s", root, INDEX_HTML);
+  } else {
+    full_path = (char*) malloc(strlen(root) + strlen(no_query));
+    sprintf(full_path, "%s%s", root, no_query);
+  }
+
+  free(no_query);
+
+  return full_path;
+}
+
+static void on_parse_complete(sws_parse_req_t* req) {
+  debug("%s\n", sws_req_parser_result_str((sws_parse_result_t*)req));
+
+  char *root = "/usr/thlorenz/wsw";
+  char *path = resolve_url(root, req->url);
+  dbg("resolved url to %s\n", path);
   uv_write(&req->write_req, (uv_stream_t*) &req->handle, &default_response, 1, on_res_write);
+  free(path);
 }
 
 static void on_res_write(uv_write_t* req, int status) {
