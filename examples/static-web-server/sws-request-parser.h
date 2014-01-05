@@ -28,6 +28,7 @@ struct sws_header_line_s {
   char accept[MAX_HEADER_VALUE];          \
   char accept_encoding[MAX_HEADER_VALUE]; \
   char accept_language[MAX_HEADER_VALUE]; \
+  enum http_method method;                \
   /* private */                           \
   struct sws_header_line_s header_line;   \
 

@@ -48,11 +48,12 @@ int sws_req_parser_execute(sws_parse_req_t * parse_req, char* buf, ssize_t nread
 }
 
 char* sws_req_parser_result_str(sws_parse_result_t* r) {
-  char *str = malloc(sizeof(char) * MAX_HEADER_VALUE * 6 /*nfields*/) + 100 /*formatting*/;
+  char *str = malloc(sizeof(char) * MAX_HEADER_VALUE * 6 /*nfields*/) + 10 /*method*/+ 150 /*formatting*/;
+  const char *method = http_method_str(r->method);
   sprintf(
       str
-    , "url: '%s''\nUser-Agent: %s\nHost: '%s'\nAccept: '%s'\nAccept-Encoding: '%s'\nAccept-Language: '%s'"
-    , r->url,   r->user_agent,  r->host,    r->accept,    r->accept_encoding,    r->accept_language
+    , "\033[1;33m%s %s\33[0m\n\33[90m    User-Agent: %s\n    Host: '%s'\n    Accept: '%s'\n    Accept-Encoding: '%s'\n    Accept-Language: '%s'\33[39m"
+    , method, r->url, r->user_agent, r->host, r->accept, r->accept_encoding, r->accept_language
   );
   return str;
 }
@@ -71,12 +72,10 @@ static int on_message_begin(http_parser* parser) {
 }
 
 static int on_url(http_parser* parser, const char* hdr, size_t length) {
-  int r;
-
   sws_parse_req_t *req = (sws_parse_req_t*) parser->data;
   req->url = strslice(hdr, length);
 
-  dbg("[ %3d ] url: %s\n", req->id, req->url);
+  // dbg("[ %3d ] url: %s\n", req->id, req->url);
 
   return 0;
 }
@@ -87,7 +86,7 @@ static int on_header_field(http_parser* parser, const char* hdr, size_t length) 
   req->header_line.field = strslice(hdr, length);
   req->header_line.field_len = length;
 
-  dbg("[ %3d ] %s: ", req->id, req->header_line.field);
+  // dbg("[ %3d ] %s: ", req->id, req->header_line.field);
   return 0;
 }
 
@@ -131,9 +130,6 @@ static int on_header_value(http_parser* parser, const char* hdr, size_t length) 
 
   process_header_line((sws_parse_result_t*) req);
 
-  dbg("%s\n", req->header_line.value);
-
-
   free(req->header_line.field);
   req->header_line.field = NULL;
 
@@ -156,6 +152,7 @@ static int on_message_complete(http_parser* parser) {
   sws_parse_req_t *req = (sws_parse_req_t*) parser->data;
   dbg("[ %3d ] * message complete\n", req->id);
 
+  req->method = req->parser.method;
   if (req->on_parse_complete) {
     req->on_parse_complete((sws_parse_result_t*)req);
   }

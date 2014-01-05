@@ -77,7 +77,7 @@ static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
   } else if (nread > 0) {
     sws_parse_req_t *req = (sws_parse_req_t*) tcp->data;
 
-    log_info("[ %3d ] req (len %ld)\n%s", req->id, nread, buf->base);
+    log_info("[ %3d ] req (len %ld)", req->id, nread);
 
     parsed = sws_req_parser_execute(req, buf->base, nread);
     if (parsed < nread) {
@@ -93,6 +93,7 @@ static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
 static void on_parse_complete(sws_parse_result_t* parse_result) {
   sws_req_t *req = (sws_req_t*) parse_result;
   debug("parsed header:\n%s", sws_req_parser_result_str(parse_result));
+
   uv_write(&req->write_req, (uv_stream_t*) &req->handle, &default_response, 1, on_res_write);
 }
 
