@@ -92,15 +92,21 @@ static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
   if (buf->base) free(buf->base);
 }
 
-static void on_parse_complete(sws_parse_req_t* req) {
-  debug("%s\n", sws_req_parser_result_str((sws_parse_result_t*)req));
+static void on_parse_complete(sws_parse_req_t* parse_req) {
+  debug("%s\n", sws_req_parser_result_str((sws_parse_result_t*)parse_req));
 
-  sws_resolve_resource(loop, &req->handle, req->url, on_resolve_resource);
-  uv_write(&req->write_req, (uv_stream_t*) &req->handle, &default_response, 1, on_res_write);
+  sws_resource_info_t *resource_info;
+  resource_info = (sws_resource_info_t*) malloc(sizeof(sws_resource_info_t));
+  sws_resolve_resource_init(resource_info, loop);
+  resource_info->data = (void*) parse_req;
+
+  sws_resolve_resource_start(resource_info, parse_req->url, on_resolve_resource);
+  uv_write(&parse_req->write_req, (uv_stream_t*) &parse_req->handle, &default_response, 1, on_res_write);
 }
 
 static void on_resolve_resource(sws_resource_info_t* info) {
-  // TODO: cleanup (including the sws_parse_req)
+  free((sws_parse_req_t*) info->data);
+
   if (info->result) {
     UVERR(info->result, "resolve resource");
   } else {

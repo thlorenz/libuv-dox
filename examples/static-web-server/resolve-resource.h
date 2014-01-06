@@ -12,17 +12,23 @@ struct sws_resource_info_s {
   size_t size;
   unsigned int result;
 
-  /* the client that requested the resource */
-  uv_tcp_t *client;
+  /* for now this will point to sws_parse_result_t, but we don't want to know about that type here */
+  void* data;
 
   /* private */
   sws_resolve_resource_cb resolve_resource_cb;
+  uv_loop_t *loop;
 };
 
 char* sws_resource_info_str(sws_resource_info_t *info);
-void sws_resolve_resource(
-    uv_loop_t* loop
-  , uv_tcp_t* client
+
+int sws_resolve_resource_init(
+    sws_resource_info_t* resource_info
+  , uv_loop_t* loop
+  );
+
+void sws_resolve_resource_start(
+    sws_resource_info_t* resource_info
   , const char* url_path
   , sws_resolve_resource_cb resolve_resource_cb
 );

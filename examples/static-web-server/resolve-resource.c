@@ -62,14 +62,20 @@ void fs_stat_cb(uv_fs_t* req) {
   uv_fs_req_cleanup(req);
 }
 
-void sws_resolve_resource
-  ( uv_loop_t* loop
-  , uv_tcp_t* client
+int sws_resolve_resource_init(
+    sws_resource_info_t* resource_info
+  , uv_loop_t* loop
+  ) {
+  resource_info->loop = loop;
+  return 0;
+}
+
+void sws_resolve_resource_start(
+    sws_resource_info_t* resource_info
   , const char* url_path
   , sws_resolve_resource_cb resolve_resource_cb
   ) {
 
-  sws_resource_info_t *resource_info;
   int r;
 
   /* only resolve root the very first time since it shouldn't change  */
@@ -80,14 +86,12 @@ void sws_resolve_resource
     strcat(root, "/static");
   }
 
-  resource_info = (sws_resource_info_t*) malloc(sizeof(sws_resource_info_t));
-  resource_info->client = client;
   resource_info->resolve_resource_cb = resolve_resource_cb;
   resolve_url(url_path, resource_info->full_path);
 
-  uv_fs_t *req = (uv_fs_t*) malloc(sizeof(uv_fs_t));
-  req->data = (void*) resource_info;
-  r = uv_fs_stat(loop, req, resource_info->full_path, fs_stat_cb);
+  uv_fs_t *fs_req = (uv_fs_t*) malloc(sizeof(uv_fs_t));
+  fs_req->data = (void*) resource_info;
+  r = uv_fs_stat(resource_info->loop, fs_req, resource_info->full_path, fs_stat_cb);
   CHECK(r, "fs_stat");
 }
 
