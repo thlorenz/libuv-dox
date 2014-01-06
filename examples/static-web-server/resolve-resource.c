@@ -43,27 +43,33 @@ static void resolve_url(const char* url_path, char *full_path) {
   free(no_query);
 }
 
-char* sws_fileinfo_str(sws_fileinfo_t *info) {
+char* sws_resource_info_str(sws_resource_info_t *info) {
   char *str = malloc(sizeof(char) * (PATH_MAX + 30 /* size */));
   sprintf(str, "%s (%ld)", info->full_path, info->size);
   return str;
 }
 
 void fs_stat_cb(uv_fs_t* req) {
-  sws_fileinfo_t *fileinfo = (sws_fileinfo_t*) req->data;
+  sws_resource_info_t *resource_info = (sws_resource_info_t*) req->data;
 
   if (req->result) {
-    fileinfo->result =req->result;
+    resource_info->result =req->result;
   } else {
-    fileinfo->size = req->statbuf.st_size;
+    resource_info->size = req->statbuf.st_size;
   }
 
-  fileinfo->resolve_resource_cb(fileinfo);
+  resource_info->resolve_resource_cb(resource_info);
   uv_fs_req_cleanup(req);
 }
 
-void sws_resolve_resource(uv_loop_t* loop, const char* url_path, sws_resolve_resource_cb resolve_resource_cb) {
-  sws_fileinfo_t *fileinfo;
+void sws_resolve_resource
+  ( uv_loop_t* loop
+  , uv_tcp_t* client
+  , const char* url_path
+  , sws_resolve_resource_cb resolve_resource_cb
+  ) {
+
+  sws_resource_info_t *resource_info;
   int r;
 
   /* only resolve root the very first time since it shouldn't change  */
@@ -74,13 +80,14 @@ void sws_resolve_resource(uv_loop_t* loop, const char* url_path, sws_resolve_res
     strcat(root, "/static");
   }
 
-  fileinfo = (sws_fileinfo_t*) malloc(sizeof(sws_fileinfo_t));
-  fileinfo->resolve_resource_cb = resolve_resource_cb;
-  resolve_url(url_path, fileinfo->full_path);
+  resource_info = (sws_resource_info_t*) malloc(sizeof(sws_resource_info_t));
+  resource_info->client = client;
+  resource_info->resolve_resource_cb = resolve_resource_cb;
+  resolve_url(url_path, resource_info->full_path);
 
   uv_fs_t *req = (uv_fs_t*) malloc(sizeof(uv_fs_t));
-  req->data = (void*) fileinfo;
-  r = uv_fs_stat(loop, req, fileinfo->full_path, fs_stat_cb);
+  req->data = (void*) resource_info;
+  r = uv_fs_stat(loop, req, resource_info->full_path, fs_stat_cb);
   CHECK(r, "fs_stat");
 }
 
@@ -92,8 +99,8 @@ void sws_resolve_resource(uv_loop_t* loop, const char* url_path, sws_resolve_res
 
 /*  Example:
  *
- *  void on_resolved_resource(sws_fileinfo_t *info) {
- *    debug("resolved %s", sws_fileinfo_str(info));
+ *  void on_resolved_resource(sws_resource_info_t *info) {
+ *    debug("resolved %s", sws_resource_info_str(info));
  *  }
  *
  *  int main(void) {
