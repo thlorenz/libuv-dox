@@ -63,11 +63,12 @@ void read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     (*readp) = nread;
     // communicate number of bytes we are writing to write_cb
     req->data = readp;
+    uv_buf_t wbuf = uv_buf_init(buf->base, nread);
 
     // uvbook assigns req->data to buf->base here to free it in write_cb
     // (https://github.com/nikhilm/uvbook/blob/79d441bf695f2342f590962f74f4be788890f428/code/tcp-echo-server/main.c#L30),
     // but freeing right after calling uv_write works just fine
-    uv_write(req, client, buf, 1/*nbufs*/, write_cb);
+    uv_write(req, client, &wbuf, 1/*nbufs*/, write_cb);
     //fprintf(stderr, "writing %ld bytes\n", req->bufs[0].len);
   }
   if (buf->base) free(buf->base);
