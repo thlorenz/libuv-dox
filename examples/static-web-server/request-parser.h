@@ -11,6 +11,7 @@ typedef void (*sws_parse_complete_cb)(sws_parse_req_t*);
 
 void sws_req_parser_init(sws_parse_req_t* parse_req, sws_parse_complete_cb);
 int sws_req_parser_execute(sws_parse_req_t* parse_req, char* buf, ssize_t nread);
+void sws_cleanup_parse_req(sws_parse_req_t* parse_req);
 char* sws_req_parser_result_str(sws_parse_result_t* result);
 
 #define MAX_HEADER_VALUE 500
@@ -41,6 +42,8 @@ struct sws_header_line_s {
   /* private */                           \
   struct sws_header_line_s header_line;   \
 
+// TODO: make url be allocated and ensure that header_line is freed for every value
+//       or implement cleanup method
 struct sws_req_s {
   SWS_REQ_FIELDS
 };

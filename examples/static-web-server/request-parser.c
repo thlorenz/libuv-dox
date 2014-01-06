@@ -43,8 +43,14 @@ void sws_req_parser_init(sws_parse_req_t* parse_req, sws_parse_complete_cb on_pa
   parse_req->on_parse_complete = on_parse_complete;
 }
 
-int sws_req_parser_execute(sws_parse_req_t * parse_req, char* buf, ssize_t nread) {
+int sws_req_parser_execute(sws_parse_req_t* parse_req, char* buf, ssize_t nread) {
   return http_parser_execute(&parse_req->parser, &parser_settings, buf, nread);
+}
+
+void sws_cleanup_parse_req(sws_parse_req_t* parse_req) {
+  free(parse_req->url);
+  free(parse_req->header_line.field);
+  free(parse_req->header_line.value);
 }
 
 char* sws_req_parser_result_str(sws_parse_result_t* r) {

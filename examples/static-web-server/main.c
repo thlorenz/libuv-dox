@@ -48,24 +48,24 @@ static void on_connect(uv_stream_t *server, int status) {
   CHECK(status, "connecting");
   debug("connecting req");
 
-  sws_parse_req_t *req = malloc(sizeof(sws_parse_req_t));
-  uv_tcp_init(loop, &req->handle);
+  sws_parse_req_t *parse_req = malloc(sizeof(sws_parse_req_t));
+  uv_tcp_init(loop, &parse_req->handle);
 
   // see: on_req_read
-  req->handle.data = req;
-  req->id = id++;
+  parse_req->handle.data = parse_req;
+  parse_req->id = id++;
 
-  sws_req_parser_init(req, on_parse_complete);
+  sws_req_parser_init(parse_req, on_parse_complete);
 
-  r = uv_accept(server, (uv_stream_t*) &req->handle);
+  r = uv_accept(server, (uv_stream_t*) &parse_req->handle);
   if (r) {
     log_err("error accepting connection %d", r);
-    uv_close((uv_handle_t*) req, NULL);
+    uv_close((uv_handle_t*) parse_req, NULL);
   } else {
     // read the req into the tcp socket to cause it to get parsed
     // once the headers are in we'll get called back the first time (see on_headers_complete)
     // for now we assume no body since this is just a static webserver
-    uv_read_start((uv_stream_t*) req, alloc_cb, on_req_read);
+    uv_read_start((uv_stream_t*) parse_req, alloc_cb, on_req_read);
   }
 }
 
@@ -77,14 +77,14 @@ static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
 
     debug("closed req tcp connection due to unexpected EOF");
   } else if (nread > 0) {
-    sws_parse_req_t *req = (sws_parse_req_t*) tcp->data;
+    sws_parse_req_t *parse_req = (sws_parse_req_t*) tcp->data;
 
-    log_info("[ %3d ] req (len %ld)", req->id, nread);
+    log_info("[ %3d ] req (len %ld)", parse_req->id, nread);
 
-    parsed = sws_req_parser_execute(req, buf->base, nread);
+    parsed = sws_req_parser_execute(parse_req, buf->base, nread);
     if (parsed < nread) {
       log_err("parsing http req");
-      uv_close((uv_handle_t*) &req->handle, on_res_end);
+      uv_close((uv_handle_t*) &parse_req->handle, on_res_end);
     }
   } else {
     UVERR((int) nread, "reading req req");
@@ -98,30 +98,42 @@ static void on_parse_complete(sws_parse_req_t* parse_req) {
   sws_resource_info_t *resource_info;
   resource_info = (sws_resource_info_t*) malloc(sizeof(sws_resource_info_t));
   sws_resolve_resource_init(resource_info, loop);
+
+  // keep this guy around so we can clean him up later in one shot
   resource_info->data = (void*) parse_req;
 
   sws_resolve_resource_start(resource_info, parse_req->url, on_resolve_resource);
-  uv_write(&parse_req->write_req, (uv_stream_t*) &parse_req->handle, &default_response, 1, on_res_write);
 }
 
 static void on_resolve_resource(sws_resource_info_t* info) {
-  free((sws_parse_req_t*) info->data);
+  sws_parse_req_t* parse_req;
+  parse_req = (sws_parse_req_t*) info->data;
 
   if (info->result) {
     UVERR(info->result, "resolve resource");
+    // TODO: send 404
   } else {
     debug("resolved %s", sws_resource_info_str(info));
+    parse_req->write_req.data = (void*) parse_req;
+    uv_write(&parse_req->write_req, (uv_stream_t*) &parse_req->handle, &default_response, 1, on_res_write);
   }
+  free(info);
 }
 
 static void on_res_write(uv_write_t* req, int status) {
   CHECK(status, "on res write");
+
+  // keep our parse_req around
+  req->handle->data = req->data;
   uv_close((uv_handle_t*) req->handle, on_res_end);
 }
 
 static void on_res_end(uv_handle_t *handle) {
-  sws_req_t* req = (sws_req_t*) handle->data;
-  log_info("[ %3d ] connection closed", req->id);
+  sws_parse_req_t* parse_req = (sws_parse_req_t*) handle->data;
+  log_info("[ %3d ] connection closed", parse_req->id);
+  // was cleaned in on_resolve
+  sws_cleanup_parse_req(parse_req);
+  free(parse_req);
 }
 
 int main() {
