@@ -12,10 +12,8 @@
 
 #define UVERR(r, msg) log_err("%s: [%s(%d): %s]\n", msg, uv_err_name((r)), r, uv_strerror((r)));
 
-#define INDEX_HTML      "/index.html"
-#define INDEX_HTML_LEN  11
-#define STATIC          "/static"
-#define STATIC_LEN      7
+#define INDEX_HTML  "/index.html"
+#define STATIC      "/static"
 
 static char root[PATH_MAX];
 
@@ -83,7 +81,7 @@ void sws_resolve_resource_start(
   if (!*root) {
     r = uv_cwd(root, PATH_MAX);
     CHECK(r, "getting cwd");
-    strcat(root, "/static");
+    strcat(root, STATIC);
   }
 
   resource_info->resolve_resource_cb = resolve_resource_cb;
@@ -96,22 +94,4 @@ void sws_resolve_resource_start(
 }
 
 #undef INDEX_HTML
-#undef INDEX_HTML_LEN
 #undef STATIC
-#undef STATIC_LEN
-
-
-/*  Example:
- *
- *  void on_resolved_resource(sws_resource_info_t *info) {
- *    debug("resolved %s", sws_resource_info_str(info));
- *  }
- *
- *  int main(void) {
- *    uv_loop_t *loop;
- *    loop = uv_default_loop();
- *    sws_resolve_resource(loop, "/index.html", on_resolved_resource);
- *    uv_run(loop, UV_RUN_DEFAULT);
- *    return 0;
- *  }
- */
