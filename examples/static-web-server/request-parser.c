@@ -58,8 +58,6 @@ char* sws_req_parser_result_str(sws_parse_result_t* r) {
   return str;
 }
 
-// TODO: sws_cleanup_parser_result
-
 static char* strslice(const char* s, size_t len) {
   char *slice = (char*) malloc(sizeof(char) * (len + 1));
   strncpy(slice, s, len);
