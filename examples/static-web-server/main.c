@@ -105,7 +105,43 @@ static void on_parse_complete(sws_parse_req_t* parse_req) {
   sws_resolve_resource_start(resource_info, parse_req->url, on_resolve_resource);
 }
 
+
+// send file
+
+typedef struct sws_sendfile_req_s sws_sendfile_req_t;
+typedef void (*sws_sendfile_complete_cb)(sws_sendfile_req_t*);
+static void on_file_open(uv_fs_t* open_req);
+
+struct sws_sendfile_req_s {
+  uv_loop_t *loop;
+  uv_write_t* write_req;
+  uv_tcp_t* handle;
+
+  /* private */
+  sws_sendfile_complete_cb sendfile_complete_cb;
+};
+
+
+static int send_file_init(
+    uv_loop_t* loop
+  , sws_sendfile_req_t *sendfile_req
+  , uv_write_t* write_req
+  , uv_tcp_t* handle
+  );
+
+static void send_file_start(
+    sws_sendfile_req_t *sendfile_req
+  , const char* path
+  , size_t size
+  , sws_sendfile_complete_cb sendfile_complete_cb
+  );
+
+static void on_sendfile_complete(sws_sendfile_req_t* sendfile_req) {
+
+}
+
 static void on_resolve_resource(sws_resource_info_t* info) {
+  int r;
   sws_parse_req_t* parse_req;
   parse_req = (sws_parse_req_t*) info->data;
 
@@ -115,10 +151,68 @@ static void on_resolve_resource(sws_resource_info_t* info) {
   } else {
     debug("resolved %s", sws_resource_info_str(info));
     parse_req->write_req.data = (void*) parse_req;
-    uv_write(&parse_req->write_req, (uv_stream_t*) &parse_req->handle, &default_response, 1, on_res_write);
+
+    sws_sendfile_req_t *sendfile_req = (sws_sendfile_req_t*) malloc(sizeof(sws_sendfile_req_t));
+
+    r = send_file_init(loop, sendfile_req, &parse_req->write_req, &parse_req->handle);
+    CHECK(r, "send file init");
+
+
+    send_file_start(sendfile_req, info->full_path, info->size, on_sendfile_complete);
   }
   free(info);
 }
+
+
+static int send_file_init(
+    uv_loop_t* loop
+  , sws_sendfile_req_t *sendfile_req
+  , uv_write_t* write_req
+  , uv_tcp_t* handle
+  ) {
+
+  sendfile_req->loop = loop;
+  sendfile_req->write_req = write_req;
+  sendfile_req->handle = handle;
+
+  return 0;
+}
+
+static void send_file_start(
+    sws_sendfile_req_t *sendfile_req
+  , const char* path
+  , size_t size
+  , sws_sendfile_complete_cb sendfile_complete_cb
+  ) {
+  sendfile_req->sendfile_complete_cb = sendfile_complete_cb;
+
+  uv_fs_t *open_req = (uv_fs_t*) malloc(sizeof(uv_fs_t));
+  open_req->data = (void*) sendfile_req;
+
+  uv_fs_open(sendfile_req->loop, open_req, path, O_RDONLY, S_IRUSR, on_file_open);
+}
+
+static void on_file_open(uv_fs_t* open_req) {
+  // Pointers at this point (npi):
+  //
+  // open_req->data=> send_file_req
+  //  sendfile_req->write_req->data=> parse_req
+  //
+  // resource_info was freed in on_resolve_resource
+
+  sws_sendfile_req_t *sendfile_req = (sws_sendfile_req_t*) open_req->data;
+
+  // XXXX: most likely the send file module won't want to know anything about a parse_req
+  sws_parse_req_t *parse_req = (sws_parse_req_t*) sendfile_req->write_req->data;
+  debug("[  %3d ] '%s' opened file: %s ", parse_req->id, parse_req->url, open_req->path);
+
+  //uv_fs_read(sendfile_req->loop,
+
+  uv_fs_req_cleanup(open_req);
+  free(open_req);
+  uv_write(sendfile_req->write_req, (uv_stream_t*) sendfile_req->handle, &default_response, 1, on_res_write);
+}
+
 
 static void on_res_write(uv_write_t* req, int status) {
   CHECK(status, "on res write");
