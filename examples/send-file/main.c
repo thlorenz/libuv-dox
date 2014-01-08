@@ -14,11 +14,19 @@
 #define BACKLOG 128
 
 #define NOIPC   0
+#define BUFSIZE 1024
 
 typedef struct {
   uv_write_t req;
   uv_buf_t buf;
 } write_req_t;
+
+typedef struct {
+  ssize_t nread;
+  ssize_t nwritten;
+  uv_pipe_t *file_pipe;
+  uv_stream_t *tcp;
+} file_tcp_pipe_t;
 
 static uv_loop_t *loop;
 static uv_tcp_t server;
@@ -26,13 +34,15 @@ static uv_tcp_t server;
 static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf);
 static void on_file_read(uv_stream_t *file_pipe, ssize_t nread, const uv_buf_t *buf);
 static void write_data(uv_stream_t *tcp, size_t size, const uv_buf_t *buf, uv_write_cb cb);
-static void on_write_res_end(uv_write_t* write_req, int status);
+static void on_write_res(uv_write_t* write_req, int status);
 static void on_res_end(uv_handle_t *handle);
 static void pipe_file(uv_stream_t *tcp);
 
 static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
-  buf->base = malloc(size);
-  buf->len = size;
+  // forcing smaller size to get multiple chunks even for a small file like this
+  size_t len = BUFSIZE ? BUFSIZE : size;
+  buf->base = malloc(len);
+  buf->len = len;
 }
 
 static void on_connect(uv_stream_t *server, int status) {
@@ -42,7 +52,6 @@ static void on_connect(uv_stream_t *server, int status) {
 
   uv_tcp_t *handle = malloc(sizeof(uv_tcp_t));
   uv_tcp_init(loop, handle);
-  fprintf(stderr, "handle->type: %d\n", handle->type);
 
   r = uv_accept(server, (uv_stream_t*) handle);
   if (r) {
@@ -60,12 +69,11 @@ static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
 
   if (nread == UV_EOF) {
     uv_close((uv_handle_t*) tcp, NULL);
-
-    fprintf(stderr, "closed req tcp connection due to unexpected EOF");
+    fprintf(stderr, "closed tcp connection due to unexpected EOF");
   } else if (nread > 0) {
     pipe_file(tcp);
   } else {
-    UVERR((int) nread, "reading req req");
+    UVERR((int) nread, "reading req");
   }
   if (buf->base) free(buf->base);
 }
@@ -82,21 +90,33 @@ static void pipe_file(uv_stream_t *tcp) {
   uv_pipe_init(loop, file_pipe, NOIPC);
   uv_pipe_open(file_pipe, fd);
 
-  file_pipe->data = (void*) tcp;
+  // allow us to get back to all info regarding this pipe via tcp->data or file_pipe->data
+  file_tcp_pipe_t *file_tcp_pipe =  (file_tcp_pipe_t*) malloc(sizeof(file_tcp_pipe_t));
+  file_tcp_pipe->nread           =  0;
+  file_tcp_pipe->nwritten        =  0;
+  file_tcp_pipe->file_pipe       =  file_pipe;
+  file_tcp_pipe->tcp             =  tcp;
+  file_pipe->data                =  (void*) file_tcp_pipe;
+  tcp->data                      =  (void*) file_tcp_pipe;
+
   // TODO: write headers first
-  fprintf(stderr, "starting to pipe file\n");
+  fprintf(stderr, "piping file into response\n");
   uv_read_start((uv_stream_t*) file_pipe, alloc_cb, on_file_read);
 }
 
 static void on_file_read(uv_stream_t *file_pipe, ssize_t nread, const uv_buf_t *buf) {
-  uv_stream_t *tcp = (uv_stream_t*) file_pipe->data;
+  file_tcp_pipe_t *file_tcp_pipe = (file_tcp_pipe_t*) file_pipe->data;
+  uv_stream_t *tcp = file_tcp_pipe->tcp;
 
   if (nread == UV_EOF) {
+    // oddly this never hits
+    fprintf(stderr, "EOF\n");
     uv_close((uv_handle_t*)&file_pipe, NULL);
-    uv_close((uv_handle_t*) tcp, on_res_end);
   } else if (nread > 0) {
-    fprintf(stderr, "%ld bytes read\n", nread);
-    write_data((uv_stream_t*)tcp, nread, buf, on_write_res_end);
+    file_tcp_pipe->nread += nread;
+    write_data((uv_stream_t*)tcp, nread, buf, on_write_res);
+  } else {
+    UVERR((int)nread, "reading file");
   }
 
   if (buf->base) free(buf->base);
@@ -105,28 +125,45 @@ static void on_file_read(uv_stream_t *file_pipe, ssize_t nread, const uv_buf_t *
 static void write_data(uv_stream_t *tcp, size_t size, const uv_buf_t *buf, uv_write_cb cb) {
   write_req_t *write_req = malloc(sizeof(write_req_t));
   write_req->buf = uv_buf_init((char*) malloc(size), size);
-  write_req->req.data = (void*) tcp;
+
+  // keep file_tcp_pipe_t around
+  write_req->req.data = (void*) tcp->data;
   memcpy(write_req->buf.base, buf->base, size);
   uv_write((uv_write_t*)write_req, (uv_stream_t*)tcp, &write_req->buf, 1 /* n bufs */, cb);
 }
 
-static void free_write_req(uv_write_t *req) {
-  write_req_t *wreq = (write_req_t*) req;
-  free(wreq->buf.base);
-  free(wreq);
+static void free_write_req(write_req_t *req) {
+  free(req->buf.base);
+  free(req);
 }
 
-static void on_write_res_end(uv_write_t* write_req, int status) {
-  CHECK(status, "writing file data to response");
-  fprintf(stderr, "finished writing file, ending response\n");
-  free_write_req(write_req);
+static void free_file_tcp_pipe(file_tcp_pipe_t* file_tcp_pipe) {
+  free(file_tcp_pipe->file_pipe);
+  free(file_tcp_pipe->tcp);
+  free(file_tcp_pipe);
+}
 
-  uv_stream_t *tcp = (uv_stream_t*) write_req->data;
-  uv_close((uv_handle_t*) tcp, NULL);
+static void on_write_res(uv_write_t* write_req, int status) {
+  CHECK(status, "writing file data to response");
+
+  file_tcp_pipe_t *file_tcp_pipe = (file_tcp_pipe_t*) write_req->data;
+  write_req_t *write_buf_req = (write_req_t*) write_req;
+
+  file_tcp_pipe->nwritten += write_buf_req->buf.len;
+
+  fprintf(stderr, "%ld of %ld\n", file_tcp_pipe->nwritten, file_tcp_pipe->nread);
+  free_write_req(write_buf_req);
+
+  if (file_tcp_pipe->nwritten == file_tcp_pipe->nread) {
+    uv_close((uv_handle_t*) file_tcp_pipe->tcp, on_res_end);
+  }
 }
 
 static void on_res_end(uv_handle_t *handle) {
-  fprintf(stderr, "connection closed\n");
+  fprintf(stderr, "connection closed, cleaning up\n");
+  uv_stream_t *tcp = (uv_stream_t*) handle;
+  file_tcp_pipe_t *file_tcp_pipe = (file_tcp_pipe_t*) tcp->data;
+  free_file_tcp_pipe(file_tcp_pipe);
 }
 
 int main() {
