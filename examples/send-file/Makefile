@@ -1,6 +1,6 @@
 UV_PATH=$(shell pwd)/../libuv
 UV_LIB=$(UV_PATH)/out/Debug/libuv.a
-CFLAGS=-g -Wall -I$(UV_PATH)/include/
+CFLAGS=-g -O2 -Wall -I$(UV_PATH)/include/
 LIBS=
 
 uname_S=$(shell uname -s)
@@ -14,11 +14,8 @@ LIBS=-lrt -ldl -lm -pthread
 endif
 
 MAIN=main.c
+MAIN_OBJECT=main.o
 EXECUTABLE=main
-
-$(EXECUTABLE): $(UV_LIB)
-	$(CC) $(CFLAGS) $^ -o $@
-
 
 all: clean $(EXECUTABLE)
 
@@ -40,16 +37,17 @@ runout: all
 	@echo "\n\033[1;33m<<<\033[0m\n"
 	make clean
 
+$(UV_LIB):
+	cd $(UV_PATH) && \
+	test -d ./build/gyp || (mkdir -p ./build && git clone https://git.chromium.org/external/gyp.git ./build/gyp) && \
+	./gyp_uv.py -f make && \
+	$(MAKE) -C ./out
+
+$(EXECUTABLE): $(UV_LIB) $(MAIN)
+	$(CC) $(CFLAGS) $^ -o $@
+
 .c.o:
 	$(CC) $(CFLAGS) $< -o $@
-
-$(UV_LIB):
-	$(shell pushd pwd)
-	$(shell cd $(UV_PATH))
-	git clone https://git.chromium.org/external/gyp.git build/gyp
-	./gyp_uv.py -f make
-	make -C out
-	$(shell cd -)
 
 clean:
 	find . -name "*.gc*" -exec rm {} \;
