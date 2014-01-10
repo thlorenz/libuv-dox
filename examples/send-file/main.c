@@ -3,17 +3,17 @@
 #include <assert.h>
 #include "../libuv/include/uv.h"
 
-#define CHECK(r, msg) if (r) {                                                 \
-  fprintf(stderr, "%s: [%s(%d): %s]\n", msg, uv_err_name((r)), r, uv_strerror((r)));   \
-  exit(1);                                                                     \
+#define CHECK(r, msg) if (r) {                                                          \
+  fprintf(stderr, "%s: [%s(%d): %s]\n", msg, uv_err_name((r)), r, uv_strerror((r)));    \
+  exit(1);                                                                              \
 }
 
 #define UVERR(r, msg) fprintf(stderr, "%s: [%s(%d): %s]\n", msg, uv_err_name((r)), r, uv_strerror((r)));
 
-#define SUCCES_HDRS(type, len) \
-  "HTTP/1.1 200 OK\r\n" \
-  "Content-Type: (type)\r\n" \
-  "Content-Length: (len)\r\n" \
+#define SUCCES_HDRS               \
+  "HTTP/1.1 200 OK\r\n"           \
+  "Content-Type: text/plain\r\n"  \
+  "Transfer-Coding: chunked\r\n"  \
   "\r\n"
 
 #define PORT    3000
@@ -28,11 +28,6 @@ typedef struct {
 } write_req_t;
 
 typedef struct {
-  ssize_t size;
-  char *path;
-} file_info_t;
-
-typedef struct {
   ssize_t nread;
   ssize_t nwritten;
   ssize_t size;
@@ -45,15 +40,20 @@ static uv_loop_t *loop;
 static uv_tcp_t server;
 
 static void on_req_read        ( uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf);
-static void send_file          ( uv_stream_t *tcp, const char* filename);
+
+static void stat_file          ( uv_stream_t *tcp, const char* filename);
 static void on_file_stat       ( uv_fs_t* stat_req);
+
 static void init_file_tcp_pipe ( uv_stream_t* tcp, char* file_path, ssize_t size);
+
 static void write_headers      ( uv_stream_t* tcp);
 static void on_headers_sent    ( uv_write_t* write_req, int status);
+
 static void pipe_file          ( uv_stream_t *tcp);
 static void on_file_read       ( uv_stream_t *file_pipe, ssize_t nread, const uv_buf_t *buf);
 static void write_data         ( uv_stream_t *tcp, size_t size, const uv_buf_t *buf, uv_write_cb cb);
 static void on_write_res       ( uv_write_t* write_req, int status);
+
 static void on_res_end         ( uv_handle_t *handle);
 
 static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
@@ -69,11 +69,11 @@ static void free_write_req(write_req_t *req) {
 }
 
 static void free_file_tcp_pipe(file_tcp_pipe_t* file_tcp_pipe) {
+  free(file_tcp_pipe->file_path);
   free(file_tcp_pipe->file_pipe);
   free(file_tcp_pipe->tcp);
   free(file_tcp_pipe);
 }
-
 
 static void on_connect(uv_stream_t *server, int status) {
   int r;
@@ -86,11 +86,9 @@ static void on_connect(uv_stream_t *server, int status) {
   r = uv_accept(server, (uv_stream_t*) handle);
   if (r) {
     fprintf(stderr, "error accepting connection %d\n", r);
-    uv_close((uv_handle_t*) handle, NULL);
+    handle->data = NULL;
+    uv_close((uv_handle_t*) handle, on_res_end);
   } else {
-    // read the req into the tcp socket to cause it to get parsed
-    // once the headers are in we'll get called back the first time (see on_headers_complete)
-    // for now we assume no body since this is just a static webserver
     uv_read_start((uv_stream_t*) handle, alloc_cb, on_req_read);
   }
 }
@@ -102,14 +100,14 @@ static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
     uv_close((uv_handle_t*) tcp, NULL);
     fprintf(stderr, "closed tcp connection due to unexpected EOF");
   } else if (nread > 0) {
-    send_file(tcp, filename);
+    stat_file(tcp, filename);
   } else {
     UVERR((int) nread, "reading req");
   }
   if (buf->base) free(buf->base);
 }
 
-static void send_file(uv_stream_t *tcp, const char* filename) {
+static void stat_file(uv_stream_t *tcp, const char* filename) {
   int r;
   uv_fs_t *stat_req = (uv_fs_t*) malloc(sizeof(uv_fs_t));
   stat_req->data = (void*) tcp;
@@ -130,8 +128,6 @@ static void on_file_stat(uv_fs_t* stat_req) {
 
   init_file_tcp_pipe(tcp, path, size);
   write_headers(tcp);
-  fprintf(stderr, "file size: %ld\n", size);
-  //pipe_file(tcp, file_info->path, size);
 }
 
 static void init_file_tcp_pipe(uv_stream_t* tcp, char* file_path, ssize_t size) {
@@ -147,6 +143,7 @@ static void init_file_tcp_pipe(uv_stream_t* tcp, char* file_path, ssize_t size) 
   file_tcp_pipe_t *file_tcp_pipe =  (file_tcp_pipe_t*) malloc(sizeof(file_tcp_pipe_t));
   file_tcp_pipe->nread           =  0;
   file_tcp_pipe->nwritten        =  0;
+  file_tcp_pipe->size            =  size;
   file_tcp_pipe->tcp             =  tcp;
   file_tcp_pipe->file_pipe       =  file_pipe;
 
@@ -156,7 +153,7 @@ static void init_file_tcp_pipe(uv_stream_t* tcp, char* file_path, ssize_t size) 
 }
 
 static void write_headers(uv_stream_t* tcp) {
-  char *headers = SUCCES_HDRS("text/plain", file_tcp_pipe->size);
+  char *headers = SUCCES_HDRS;
   ssize_t len = strlen(headers);
 
   write_req_t *write_req = malloc(sizeof(write_req_t));
@@ -224,6 +221,7 @@ static void on_write_res(uv_write_t* write_req, int status) {
   free_write_req(write_buf_req);
 
   if (file_tcp_pipe->nwritten == file_tcp_pipe->nread) {
+    assert(file_tcp_pipe->size == file_tcp_pipe->nread);
     uv_close((uv_handle_t*) file_tcp_pipe->tcp, on_res_end);
   }
 }
@@ -232,7 +230,9 @@ static void on_res_end(uv_handle_t *handle) {
   fprintf(stderr, "connection closed, cleaning up\n");
   uv_stream_t *tcp = (uv_stream_t*) handle;
   file_tcp_pipe_t *file_tcp_pipe = (file_tcp_pipe_t*) tcp->data;
-  free_file_tcp_pipe(file_tcp_pipe);
+  if (file_tcp_pipe) {
+    free_file_tcp_pipe(file_tcp_pipe);
+  }
 }
 
 int main() {
