@@ -8,6 +8,11 @@
   assert(0);                                                                          \
 } while(0);
 
+typedef struct {
+  uv_write_t req;
+  uv_buf_t buf;
+} write_req_t;
+
 void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf);
 void read_cb(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf);
 void write_cb(uv_write_t *req, int status);
@@ -33,8 +38,7 @@ void connection_cb(uv_stream_t *server, int status) {
 }
 
 void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
-  buf->base = malloc(size);
-  buf->len = size;
+  *buf = uv_buf_init((char*) malloc(size), size);
 
   assert(buf->base != NULL);
 }
@@ -58,29 +62,27 @@ void read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     fprintf(stderr, "%ld bytes read\n", nread);
     total_read += nread;
 
-    uv_write_t *req = (uv_write_t*) malloc(sizeof(uv_write_t));
-
-    (*readp) = nread;
-    // communicate number of bytes we are writing to write_cb
-    req->data = readp;
-
-    // uvbook assigns req->data to buf->base here to free it in write_cb
-    // (https://github.com/nikhilm/uvbook/blob/79d441bf695f2342f590962f74f4be788890f428/code/tcp-echo-server/main.c#L30),
-    // but freeing right after calling uv_write works just fine
-    uv_write(req, client, buf, 1/*nbufs*/, write_cb);
+    write_req_t *wr = (write_req_t*) malloc(sizeof(write_req_t));
+    wr->buf =  uv_buf_init(buf->base, nread);
+    uv_write(&wr->req, client, &wr->buf, 1/*nbufs*/, write_cb);
     //fprintf(stderr, "writing %ld bytes\n", req->bufs[0].len);
   }
-  if (buf->base) free(buf->base);
+  if (nread == 0) free(buf->base);
 }
 
 void write_cb(uv_write_t *req, int status) {
+  write_req_t* wr;
+  wr = (write_req_t*) req;
+
+  int written = wr->buf.len;
   if (status) ERROR("async write", status);
-  assert(req->type == UV_WRITE);
-  int written = *(int*)req->data;
+  assert(wr->req.type == UV_WRITE);
   fprintf(stderr, "%d bytes written\n", written);
   total_written += written;
 
-  free(req);
+  /* Free the read/write buffer and the request */
+  free(wr->buf.base);
+  free(wr);
 }
 
 int main() {
