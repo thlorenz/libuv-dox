@@ -41,3 +41,5 @@ The libuv version at that is the source of this documentation is: `v0.11.17`.
 ## License
 
 MIT
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/thlorenz/libuv-dox/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
