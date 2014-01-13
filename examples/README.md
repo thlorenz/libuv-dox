@@ -1,6 +1,6 @@
 # libuv-dox-examples
 
-Some to demonstrate parts of the documented API.
+Some examples to demonstrate parts of the documented libuv API.
 
 ## Get started
 
@@ -49,6 +49,13 @@ The examples starting with a number i.e. `02-uvcat` have been adapted from the
 - `assert` statements where inserted to document expected values, i.e. `req->fs_type`
 - some error handling was introduced
 - log statements on `stderr` where added
+
+## others
+
+- [send-file](https://github.com/thlorenz/libuv-dox/tree/master/examples/send-file) shows how to send a file by piping
+  its contents into the response
+- very simple and incomplete
+  [static-web-server](https://github.com/thlorenz/libuv-dox/tree/master/examples/static-web-server)
 
 ## Isolating logs vs. output
 
