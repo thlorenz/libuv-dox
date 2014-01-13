@@ -128,12 +128,13 @@ static void on_resolve_resource(sws_resource_info_t* info) {
   int r;
   sws_handle_req_t *handle_req = (sws_handle_req_t*) info->data;
 
+  debug("resolved %s", sws_resource_info_str(info));
   if (info->result) {
     UVERR(info->result, "resolve resource");
     // TODO: return 404
+    sws_resolve_resource_init(&handle_req->resource_info, loop);
     sws_resolve_resource_start(&handle_req->resource_info, "/404.html", on_resolve_resource);
   } else {
-    debug("resolved %s", sws_resource_info_str(info));
     r = sws_pipe_file(loop, (uv_stream_t*)&handle_req->handle, info->full_path, info->size, on_pipe_file_complete);
     CHECK(r, "pipe file");
   }

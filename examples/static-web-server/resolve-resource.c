@@ -65,6 +65,7 @@ int sws_resolve_resource_init(
   , uv_loop_t* loop
   ) {
   resource_info->loop = loop;
+  resource_info->result = 0;
   return 0;
 }
 
