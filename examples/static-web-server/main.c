@@ -174,6 +174,7 @@ int main() {
   CHECK(r, "bind");
 
   r = uv_listen((uv_stream_t*) &server, BACKLOG, on_connect);
+  CHECK(r, "listen");
   log_info("listening on http://localhost:%d", PORT);
 
   uv_run(loop, UV_RUN_DEFAULT);

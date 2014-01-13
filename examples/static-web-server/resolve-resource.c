@@ -56,8 +56,8 @@ void fs_stat_cb(uv_fs_t* req) {
     resource_info->size = req->statbuf.st_size;
   }
 
-  resource_info->resolve_resource_cb(resource_info);
   uv_fs_req_cleanup(req);
+  resource_info->resolve_resource_cb(resource_info);
 }
 
 int sws_resolve_resource_init(
