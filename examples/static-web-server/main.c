@@ -17,13 +17,6 @@
 #define PORT    3000
 #define BACKLOG 128
 
-#define DEFAULT_RESPONSE \
-  "HTTP/1.1 200 OK\r\n" \
-  "Content-Type: text/plain\r\n" \
-  "Content-Length: 12\r\n" \
-  "\r\n" \
-  "hello world\n"
-
 /* extends uv_tcp_t (handle) */
 struct sws_handle_req_s {
   uv_tcp_t handle;
@@ -37,7 +30,6 @@ typedef struct sws_handle_req_s sws_handle_req_t;
 static uv_loop_t *loop;
 static uv_tcp_t server;
 static int id;
-static uv_buf_t default_response;
 
 static void alloc_cb            ( uv_handle_t *handle, size_t size, uv_buf_t *buf);
 
@@ -157,8 +149,6 @@ static void sws_cleanup_handle_req(sws_handle_req_t *handle_req) {
 
 int main() {
   int r;
-  default_response.base = DEFAULT_RESPONSE;
-  default_response.len = strlen(default_response.base);
 
   id = 0;
   loop = uv_default_loop();

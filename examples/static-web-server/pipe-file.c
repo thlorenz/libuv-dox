@@ -194,6 +194,7 @@ static void file_tcp_pipe_end(file_tcp_pipe_t *file_tcp_pipe, int status, int ca
   sws_pipe_file_cb pipe_file_cb;
   uv_stream_t *tcp;
 
+  // TODO: close the file
   if (callback) {
     pipe_file_cb = file_tcp_pipe->pipe_file_cb;
     tcp = file_tcp_pipe->tcp;
