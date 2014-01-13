@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>MREADME.md</title>
+  </head>
+  <body data-theme="neat">
+        <h1 id="static-web-server">static web server</h1>
+      <p><img src="https://raw.github.com/thlorenz/libuv-dox/master/examples/static-web-server/assets/screen-shot.png" alt="screenshot"></p>
+      <p>This simple example shows how to build a simple static web server with libuv.</p>
+      <p>It is by no means stable, complete or correct. It&#39;s sole purpose is to illustrate how to use the different methods
+      exposed by libuv to archieve this.</p>
+      <p>Fixing most of these problems are out of the scope for a simple example like this (just think MIME types).</p>
+      <h2 id="serving-a-request">serving a request</h2>
+      <p>After starting the server much in the way <a href="https://github.com/thlorenz/libuv-dox/tree/master/examples/send-file#starting-server">explained
+      here</a>, we handle each request as
+      follows:</p>
+      <ul>
+      <li>parse request via <a href="https://github.com/thlorenz/libuv-dox/blob/master/examples/static-web-server/request-parser.c">our request parser</a> which is a small wrapper arount
+      <a href="https://github.com/joyent/http-parser">http-parser</a></li>
+      <li>after determining what resource we are supposed to serve we try to <a href="https://github.com/thlorenz/libuv-dox/blob/master/examples/static-web-server/resolve-resource.c">resolve the appropriate file including it&#39;s
+      size</a></li>
+      <li>finally we open the file and <a href="https://github.com/thlorenz/libuv-dox/blob/master/examples/static-web-server/pipe-file.c">pipe it into the
+      response</a>, the details of
+      which are explained inside the <a href="https://github.com/thlorenz/libuv-dox/tree/master/examples/send-file">send-file example</a></li>
+      </ul>
+      <h2 id="known-problems-bugs">known problems/bugs</h2>
+      <ul>
+      <li>at this point no headers are sent, leaving the client to figure out what we are sending</li>
+      <li>files are opened but never closed - this will be fixed soon</li>
+      <li>probably lots more that I have overlooked</li>
+      </ul>
+      <p>If you find bugs, please submit a pull request to fix this. However as this is an example additions to make this more
+      complete are not desired as this is quite large enough for an example already.</p>
+      <p>I am planning on spinning another repo out from this and make improvements there while keeping the example small.</p>
+</div></div>
+  </body>
+</html>
