@@ -4,11 +4,11 @@ HTTP_PARSER_PATH=$(shell pwd)/../http-parser
 UV_LIB=$(UV_PATH)/out/Debug/libuv.a
 HTTP_PARSER=$(HTTP_PARSER_PATH)/http_parser.o
 
-CFLAGS=-g -Wall -I$(UV_PATH)/include/ $(UV_LIB) $(HTTP_PARSER)
+CFLAGS=-g -O2 -Wall -I$(UV_PATH)/include/ -I$(HTTP_PARSER_PATH)/
 LIBS=
 
 MAIN=main.c
-MAIN_OBJECTS=$(MAIN:.c=.o)
+MAIN_OBJECT=main.o
 EXECUTABLE=main
 
 REQUEST_PARSER_SRC=request-parser.c
@@ -34,7 +34,7 @@ LIBS=-lrt -ldl -lm -pthread
 PLUGIN_EXE_FLAGS=-Wl,-export-dynamic
 endif
 
-all: clean $(UV_LIB) $(HTTP_PARSER) $(EXECUTABLE)
+all: clean $(EXECUTABLE)
 
 run: all
 	@echo "\n\033[1;33m>>>\033[0m"
@@ -43,18 +43,25 @@ run: all
 	make clean
 
 .c.o:
-	$(CC) $(CFLAGS) $(UV_LIB) $< -o $@ 
+	$(CC) $(CFLAGS) $< -o $@
+
+$(EXECUTABLE): $(HTTP_PARSER) $(UV_LIB) $(MAIN) 
+	$(CC) $(CFLAGS) $^ -o $@
 
 $(UV_LIB):
-	make -C ../libuv/out
+	cd $(UV_PATH) && \
+	test -d ./build/gyp || (mkdir -p ./build && git clone https://git.chromium.org/external/gyp.git ./build/gyp) && \
+	./gyp_uv.py -f make && \
+	$(MAKE) -C ./out
 
 $(HTTP_PARSER):
-	make -C ../http-parser http_parser.o
+	cd $(HTTP_PARSER_PATH) \
+	make -C  
 
 clean:
 	find . -name "*.gc*" -exec rm {} \;
 	rm -rf `find . -name "*.dSYM" -print`
-	rm -f $(EXECUTABLE) $(MAIN_OBJECTS) $(REQUEST_PARSER_OBJECT) $(RESOLVE_RESOURCE)
+	rm -f $(EXECUTABLE) $(MAIN_OBJECT) $(REQUEST_PARSER) $(RESOLVE_RESOURCE) $(PIPE_FILE)
 
 
 .PHONY: all clean
