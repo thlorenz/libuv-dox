@@ -61,8 +61,8 @@ void fs_stat_cb(uv_fs_t* req) {
 }
 
 int sws_resolve_resource_init(
-    sws_resource_info_t* resource_info
-  , uv_loop_t* loop
+    uv_loop_t* loop
+  , sws_resource_info_t* resource_info
   ) {
   resource_info->loop = loop;
   resource_info->result = 0;

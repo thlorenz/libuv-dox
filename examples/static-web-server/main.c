@@ -118,8 +118,7 @@ static void on_parse_complete(sws_parse_req_t* parse_req) {
   sws_handle_req_t *handle_req = (sws_handle_req_t*) parse_req->data;
   debug("%s\n", sws_req_parser_result_str((sws_parse_result_t*)parse_req));
 
-  // TOD(low prio): switch order of params
-  sws_resolve_resource_init(&handle_req->resource_info, loop);
+  sws_resolve_resource_init(loop, &handle_req->resource_info);
 
   sws_resolve_resource_start(&handle_req->resource_info, handle_req->parse_req.url, on_resolve_resource);
 }
@@ -132,7 +131,7 @@ static void on_resolve_resource(sws_resource_info_t* info) {
   if (info->result) {
     UVERR(info->result, "resolve resource");
     // TODO: return 404
-    sws_resolve_resource_init(&handle_req->resource_info, loop);
+    sws_resolve_resource_init(loop, &handle_req->resource_info);
     sws_resolve_resource_start(&handle_req->resource_info, "/404.html", on_resolve_resource);
   } else {
     r = sws_pipe_file(loop, (uv_stream_t*)&handle_req->handle, info->full_path, info->size, on_pipe_file_complete);

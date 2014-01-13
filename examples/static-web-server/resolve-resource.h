@@ -23,8 +23,8 @@ struct sws_resource_info_s {
 char* sws_resource_info_str(sws_resource_info_t *info);
 
 int sws_resolve_resource_init(
-    sws_resource_info_t* resource_info
-  , uv_loop_t* loop
+    uv_loop_t* loop
+  , sws_resource_info_t* resource_info
   );
 
 void sws_resolve_resource_start(
