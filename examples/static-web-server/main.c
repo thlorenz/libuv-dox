@@ -5,6 +5,7 @@
 #include "../libuv/include/uv.h"
 #include "request-parser.h"
 #include "resolve-resource.h"
+#include "pipe-file.h"
 
 #define CHECK(r, msg) if (r) {                                                 \
   log_err("%s: [%s(%d): %s]\n", msg, uv_err_name((r)), r, uv_strerror((r)));   \
@@ -23,19 +24,32 @@
   "\r\n" \
   "hello world\n"
 
+/* extends uv_tcp_t (handle) */
+struct sws_handle_req_s {
+  uv_tcp_t handle;
+  int id;
+  sws_parse_req_t parse_req;
+  sws_resource_info_t resource_info;
+};
+
+typedef struct sws_handle_req_s sws_handle_req_t;
+
 static uv_loop_t *loop;
 static uv_tcp_t server;
 static int id;
 static uv_buf_t default_response;
 
-static void on_connect(uv_stream_t *server, int status);
-static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf);
-static void on_req_read(uv_stream_t *req, ssize_t nread, const uv_buf_t *buf);
+static void alloc_cb            ( uv_handle_t *handle, size_t size, uv_buf_t *buf);
 
-static void on_parse_complete(sws_parse_req_t* parse_result);
-static void on_resolve_resource(sws_resource_info_t* info);
-static void on_res_write(uv_write_t* req, int status);
-static void on_res_end(uv_handle_t *handle);
+static void on_connect          ( uv_stream_t *server, int status);
+static void sws_handle_req_init ( sws_handle_req_t* handle_req, int req_id);
+static void on_req_read         ( uv_stream_t *req, ssize_t nread, const uv_buf_t *buf);
+
+static void on_parse_complete      ( sws_parse_req_t* parse_result);
+static void on_resolve_resource    ( sws_resource_info_t* info);
+static void on_pipe_file_complete  ( uv_stream_t* tcp, int status);
+static void on_res_end             ( uv_handle_t *handle);
+static void sws_cleanup_handle_req ( sws_handle_req_t *handle_req);
 
 static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
   buf->base = malloc(size);
@@ -48,43 +62,51 @@ static void on_connect(uv_stream_t *server, int status) {
   CHECK(status, "connecting");
   debug("connecting req");
 
-  sws_parse_req_t *parse_req = malloc(sizeof(sws_parse_req_t));
-  uv_tcp_init(loop, &parse_req->handle);
+  // the tcp handle points to our sws_handle_req_t which can store a bit extra info
+  sws_handle_req_t *handle_req = malloc(sizeof(sws_handle_req_t));
+  sws_handle_req_init(handle_req, id++);
 
-  // see: on_req_read
-  parse_req->handle.data = parse_req;
-  parse_req->id = id++;
-
-  sws_req_parser_init(parse_req, on_parse_complete);
-
-  r = uv_accept(server, (uv_stream_t*) &parse_req->handle);
+  r = uv_accept(server, (uv_stream_t*) &handle_req->handle);
   if (r) {
     log_err("error accepting connection %d", r);
-    uv_close((uv_handle_t*) parse_req, NULL);
+    uv_close((uv_handle_t*) handle_req, NULL);
   } else {
     // read the req into the tcp socket to cause it to get parsed
     // once the headers are in we'll get called back the first time (see on_headers_complete)
     // for now we assume no body since this is just a static webserver
-    uv_read_start((uv_stream_t*) parse_req, alloc_cb, on_req_read);
+    uv_read_start((uv_stream_t*) handle_req, alloc_cb, on_req_read);
   }
+}
+
+static void sws_handle_req_init(sws_handle_req_t* handle_req, int req_id) {
+  sws_req_parser_init(&handle_req->parse_req, req_id, on_parse_complete);
+  uv_tcp_init(loop, &handle_req->handle);
+  handle_req->handle.data = NULL;
+
+  handle_req->id = req_id;
+
+  // All contained types point to parent type, except for the tcp type since its data property needs
+  // to be used for other pointers, i.e. inside pipe_file.
+  // However since handle_req and tcp point to same address we can upcast tcp to handle_req when needed.
+  handle_req->parse_req.data     = (void*) handle_req;
+  handle_req->resource_info.data = (void*) handle_req;
 }
 
 static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
   size_t parsed;
+  sws_handle_req_t *handle_req = (sws_handle_req_t*) tcp;
 
   if (nread == UV_EOF) {
     uv_close((uv_handle_t*) tcp, NULL);
 
     debug("closed req tcp connection due to unexpected EOF");
   } else if (nread > 0) {
-    sws_parse_req_t *parse_req = (sws_parse_req_t*) tcp->data;
+    log_info("[ %3d ] req (len %ld)", handle_req->id, nread);
 
-    log_info("[ %3d ] req (len %ld)", parse_req->id, nread);
-
-    parsed = sws_req_parser_execute(parse_req, buf->base, nread);
+    parsed = sws_req_parser_execute(&handle_req->parse_req, buf->base, nread);
     if (parsed < nread) {
       log_err("parsing http req");
-      uv_close((uv_handle_t*) &parse_req->handle, on_res_end);
+      uv_close((uv_handle_t*) &handle_req->handle, on_res_end);
     }
   } else {
     UVERR((int) nread, "reading req req");
@@ -93,141 +115,44 @@ static void on_req_read(uv_stream_t *tcp, ssize_t nread, const uv_buf_t *buf) {
 }
 
 static void on_parse_complete(sws_parse_req_t* parse_req) {
+  sws_handle_req_t *handle_req = (sws_handle_req_t*) parse_req->data;
   debug("%s\n", sws_req_parser_result_str((sws_parse_result_t*)parse_req));
 
-  sws_resource_info_t *resource_info;
-  resource_info = (sws_resource_info_t*) malloc(sizeof(sws_resource_info_t));
-  sws_resolve_resource_init(resource_info, loop);
+  // TOD(low prio): switch order of params
+  sws_resolve_resource_init(&handle_req->resource_info, loop);
 
-  // keep this guy around so we can clean him up later in one shot
-  resource_info->data = (void*) parse_req;
-
-  sws_resolve_resource_start(resource_info, parse_req->url, on_resolve_resource);
-}
-
-
-// send file
-
-typedef struct sws_sendfile_req_s sws_sendfile_req_t;
-typedef void (*sws_sendfile_complete_cb)(sws_sendfile_req_t*);
-static void on_file_open(uv_fs_t* open_req);
-
-struct sws_sendfile_req_s {
-  uv_loop_t *loop;
-  uv_write_t* write_req;
-  uv_tcp_t* handle;
-
-  /* private */
-  sws_sendfile_complete_cb sendfile_complete_cb;
-};
-
-
-static int send_file_init(
-    uv_loop_t* loop
-  , sws_sendfile_req_t *sendfile_req
-  , uv_write_t* write_req
-  , uv_tcp_t* handle
-  );
-
-static void send_file_start(
-    sws_sendfile_req_t *sendfile_req
-  , const char* path
-  , size_t size
-  , sws_sendfile_complete_cb sendfile_complete_cb
-  );
-
-static void on_sendfile_complete(sws_sendfile_req_t* sendfile_req) {
-
+  sws_resolve_resource_start(&handle_req->resource_info, handle_req->parse_req.url, on_resolve_resource);
 }
 
 static void on_resolve_resource(sws_resource_info_t* info) {
   int r;
-  sws_parse_req_t* parse_req;
-  parse_req = (sws_parse_req_t*) info->data;
+  sws_handle_req_t *handle_req = (sws_handle_req_t*) info->data;
 
   if (info->result) {
     UVERR(info->result, "resolve resource");
-    // TODO: send 404
+    // TODO: return 404
+    sws_resolve_resource_start(&handle_req->resource_info, "/404.html", on_resolve_resource);
   } else {
     debug("resolved %s", sws_resource_info_str(info));
-    parse_req->write_req.data = (void*) parse_req;
-
-    sws_sendfile_req_t *sendfile_req = (sws_sendfile_req_t*) malloc(sizeof(sws_sendfile_req_t));
-
-    r = send_file_init(loop, sendfile_req, &parse_req->write_req, &parse_req->handle);
-    CHECK(r, "send file init");
-
-
-    send_file_start(sendfile_req, info->full_path, info->size, on_sendfile_complete);
+    r = sws_pipe_file(loop, (uv_stream_t*)&handle_req->handle, info->full_path, info->size, on_pipe_file_complete);
+    CHECK(r, "pipe file");
   }
-  free(info);
 }
 
-
-static int send_file_init(
-    uv_loop_t* loop
-  , sws_sendfile_req_t *sendfile_req
-  , uv_write_t* write_req
-  , uv_tcp_t* handle
-  ) {
-
-  sendfile_req->loop = loop;
-  sendfile_req->write_req = write_req;
-  sendfile_req->handle = handle;
-
-  return 0;
-}
-
-static void send_file_start(
-    sws_sendfile_req_t *sendfile_req
-  , const char* path
-  , size_t size
-  , sws_sendfile_complete_cb sendfile_complete_cb
-  ) {
-  sendfile_req->sendfile_complete_cb = sendfile_complete_cb;
-
-  uv_fs_t *open_req = (uv_fs_t*) malloc(sizeof(uv_fs_t));
-  open_req->data = (void*) sendfile_req;
-
-  uv_fs_open(sendfile_req->loop, open_req, path, O_RDONLY, S_IRUSR, on_file_open);
-}
-
-static void on_file_open(uv_fs_t* open_req) {
-  // Pointers at this point (npi):
-  //
-  // open_req->data=> send_file_req
-  //  sendfile_req->write_req->data=> parse_req
-  //
-  // resource_info was freed in on_resolve_resource
-
-  sws_sendfile_req_t *sendfile_req = (sws_sendfile_req_t*) open_req->data;
-
-  // XXXX: most likely the send file module won't want to know anything about a parse_req
-  sws_parse_req_t *parse_req = (sws_parse_req_t*) sendfile_req->write_req->data;
-  debug("[  %3d ] '%s' opened file: %s ", parse_req->id, parse_req->url, open_req->path);
-
-  //uv_fs_read(sendfile_req->loop,
-
-  uv_fs_req_cleanup(open_req);
-  free(open_req);
-  uv_write(sendfile_req->write_req, (uv_stream_t*) sendfile_req->handle, &default_response, 1, on_res_write);
-}
-
-
-static void on_res_write(uv_write_t* req, int status) {
-  CHECK(status, "on res write");
-
-  // keep our parse_req around
-  req->handle->data = req->data;
-  uv_close((uv_handle_t*) req->handle, on_res_end);
+static void on_pipe_file_complete(uv_stream_t* tcp, int status) {
+  CHECK(status, "pipe file");
+  uv_close((uv_handle_t*) tcp, on_res_end);
 }
 
 static void on_res_end(uv_handle_t *handle) {
-  sws_parse_req_t* parse_req = (sws_parse_req_t*) handle->data;
-  log_info("[ %3d ] connection closed", parse_req->id);
-  // was cleaned in on_resolve
-  sws_cleanup_parse_req(parse_req);
-  free(parse_req);
+  sws_handle_req_t* handle_req = (sws_handle_req_t*) handle;
+  log_info("[ %3d ] connection closed", handle_req->id);
+  sws_cleanup_handle_req(handle_req);
+  free(handle_req);
+}
+
+static void sws_cleanup_handle_req(sws_handle_req_t *handle_req) {
+  sws_cleanup_parse_req(&handle_req->parse_req);
 }
 
 int main() {

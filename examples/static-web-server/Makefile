@@ -19,6 +19,10 @@ RESOLVE_RESOURCE_SRC=resolve-resource.c
 RESOLVE_RESOURCE=resolve-resource.o
 CFLAGS+=$(RESOLVE_RESOURCE_SRC)
 
+PIPE_FILE_SRC=pipe-file.c
+PIPE_FILE=pipe-file.o
+CFLAGS+=$(PIPE_FILE_SRC)
+
 uname_S=$(shell uname -s)
 
 ifeq (Darwin, $(uname_S))

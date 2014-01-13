@@ -37,9 +37,10 @@ static http_parser_settings parser_settings = {
  * The following pointers are initialized:
  *  - parse_req->parser.data == parse_req
  */
-void sws_req_parser_init(sws_parse_req_t* parse_req, sws_parse_complete_cb on_parse_complete) {
+void sws_req_parser_init(sws_parse_req_t* parse_req, int id, sws_parse_complete_cb on_parse_complete) {
   http_parser_init(&parse_req->parser, HTTP_REQUEST);
-  parse_req->parser.data = parse_req;
+  parse_req->id                = id;
+  parse_req->parser.data       = parse_req;
   parse_req->on_parse_complete = on_parse_complete;
 }
 
@@ -72,7 +73,7 @@ static char* strslice(const char* s, size_t len) {
 }
 
 static int on_message_begin(http_parser* parser) {
-  sws_req_t *req = (sws_req_t*) parser->data;
+  sws_parse_req_t *req = (sws_parse_req_t*) parser->data;
   dbg("[ %3d ] * message begin\n", req->id);
   return 0;
 }
@@ -146,7 +147,7 @@ static int on_header_value(http_parser* parser, const char* hdr, size_t length) 
 
 static int on_headers_complete(http_parser* parser) {
   // parser->data was pointed to the req struct in on_connect
-  sws_req_t *req = (sws_req_t*) parser->data;
+  sws_parse_req_t *req = (sws_parse_req_t*) parser->data;
   dbg("[ %3d ] * headers complete\n", req->id);
 
   // signal that there won't be a body by returning 1
