@@ -44,8 +44,6 @@ void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
 }
 
 void read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-  int *readp = malloc(sizeof(int));
-
   if (nread == UV_EOF) {
     // XXX: this is actually a bug, since client writes could back up (see ./test-client.sh) and therefore
     // some chunks to be written be left in the pipe.
