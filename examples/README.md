@@ -12,7 +12,7 @@ git submodule update --init
 ```
 
 Then follow the steps described in [the libuv
-Readme](https://github.com/joyent/libuv/blob/master/README.md#build-instructions) in order to build the libuv library.
+Readme](https://github.com/libuv/libuv/blob/master/README.md#build-instructions) in order to build the libuv library.
 
 The instructions that worked for me (on a Mac) are as follows:
 

@@ -1,7 +1,7 @@
 # libuv-dox
 
-Documenting types and methods of [libuv](https://github.com/joyent/libuv/), mostly by reading
-[`uv.h`](https://github.com/joyent/libuv/blob/f166d6d7055bbd9da83594b045a496e15b3c302a/include/uv.h).
+Documenting types and methods of [libuv](https://github.com/libuv/libuv/), mostly by reading
+[`uv.h`](https://github.com/libuv/libuv/blob/f166d6d7055bbd9da83594b045a496e15b3c302a/include/uv.h).
 
 ## Organization
 
