@@ -352,9 +352,11 @@ int uv_has_ref(const uv_handle_t*);
  * somewhat subjective but probably on the order of a millisecond or more.
  */
 void uv_update_time(uv_loop_t*);
+```
 
 ### `uv_now`
 
+```c
 /*
  * Return the current timestamp in milliseconds. The timestamp is cached at
  * the start of the event loop tick, see |uv_update_time()| for details and
@@ -389,9 +391,11 @@ uint64_t uv_now(uv_loop_t*);
  * events.
  */
 int uv_backend_fd(const uv_loop_t*);
+```
 
 ### `uv_backend_timeout`
 
+```c
 /*
  * Get the poll timeout. The return value is in milliseconds, or -1 for no
  * timeout.
