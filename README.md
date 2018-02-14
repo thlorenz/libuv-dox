@@ -1,5 +1,7 @@
 # libuv-dox
 
+<a href="https://www.patreon.com/bePatron?u=8663953"><img alt="become a patron" src="https://c5.patreon.com/external/logo/become_a_patron_button.png" height="35px"></a>
+
 Documenting types and methods of [libuv](https://github.com/libuv/libuv/), mostly by reading
 [`uv.h`](https://github.com/libuv/libuv/blob/f166d6d7055bbd9da83594b045a496e15b3c302a/include/uv.h).
 
@@ -41,5 +43,3 @@ The libuv version at that is the source of this documentation is: `v0.11.17`.
 ## License
 
 MIT
-
-[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/thlorenz/libuv-dox/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
